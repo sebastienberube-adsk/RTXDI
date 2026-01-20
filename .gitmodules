@@ -1,9 +1,9 @@
 [submodule "donut"]
 	path = External/donut
-	url = https://github.com/NVIDIA-RTX/Donut.git
+	url = https://github.com/sebastienberube-adsk/Donut.git
 [submodule "NRD"]
 	path = External/NRD
-	url = https://github.com/NVIDIA-RTX/NRD.git
+	url = https://github.com/sebastienberube-adsk/NRD.git
 [submodule "DLSS"]
 	path = External/DLSS
 	url = https://github.com/NVIDIA/DLSS.git

@@ -1,5 +1,13 @@
 
 include("${DONUT_PATH}/compileshaders.cmake")
+
+option(SHADER_DEBUG_INFO "Enable shader debug information (PDB generation and disable optimizations)" OFF)
+if(SHADER_DEBUG_INFO)
+    set(SHADER_DEBUG_OPTIONS --PDB -O0)
+else()
+    set(SHADER_DEBUG_OPTIONS "")
+endif()
+
 file(GLOB shaders "*.hlsl" "*.hlsli" "*.h")
 set(shaders
    RtxdiApplicationBridge/RAB_Buffers.hlsli
@@ -56,7 +64,8 @@ if (DONUT_WITH_DX12)
       -I ${RTXDI_RUNTIME_INCLUDE_PATH}
       ${USE_API_OPTION}
       --relaxedInclude "../Types.h"
-      --compiler ${DXC_PATH})
+      --compiler ${DXC_PATH}
+      ${SHADER_DEBUG_OPTIONS})
 
    add_custom_command(TARGET ${shaders_target} PRE_BUILD
                      COMMAND ShaderMake
@@ -78,7 +87,8 @@ if (DONUT_WITH_VULKAN)
       --relaxedInclude "../Types.h"
       -D SPIRV
       ${NVRHI_DEFAULT_VK_REGISTER_OFFSETS}
-      --compiler ${DXC_SPIRV_PATH})
+      --compiler ${DXC_SPIRV_PATH}
+      ${SHADER_DEBUG_OPTIONS})
 
    add_custom_command(TARGET ${shaders_target} PRE_BUILD
                      COMMAND ShaderMake

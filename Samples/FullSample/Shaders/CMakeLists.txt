@@ -1,6 +1,13 @@
 
 include("${DONUT_PATH}/compileshaders.cmake")
 
+# Add debug flags for shader compilation in Debug builds
+if (CMAKE_BUILD_TYPE MATCHES "Debug")
+    set(DEBUG_SHADER_FLAGS "--compilerOptions \"-Zi -Qembed_debug -Od\"")
+else()
+    set(DEBUG_SHADER_FLAGS "")
+endif()
+
 set(shaders
    DebugViz/NDirOctUNorm32Viz.hlsl
    DebugViz/PackedR11G11B10UFloatViz.hlsl
@@ -97,7 +104,8 @@ if (DONUT_WITH_DX12)
       --relaxedInclude "../Types.h"
       ${NRD_OPTIONS}
       ${USE_API_OPTION}
-      --compiler ${DXC_PATH})
+      --compiler ${DXC_PATH}
+      ${DEBUG_SHADER_FLAGS})
 
    add_custom_command(TARGET ${shaders_target} PRE_BUILD
                      COMMAND ShaderMake
@@ -120,7 +128,8 @@ if (DONUT_WITH_VULKAN)
       ${USE_API_OPTION}
       ${NVRHI_DEFAULT_VK_REGISTER_OFFSETS}
       -D SPIRV
-      --compiler ${DXC_SPIRV_PATH})
+      --compiler ${DXC_SPIRV_PATH}
+      ${DEBUG_SHADER_FLAGS})
 
    add_custom_command(TARGET ${shaders_target} PRE_BUILD
                      COMMAND ShaderMake

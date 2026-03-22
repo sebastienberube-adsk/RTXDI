@@ -1,5 +1,5 @@
 /***************************************************************************
- # Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ # Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  #
  # NVIDIA CORPORATION and its licensors retain all intellectual property
  # and proprietary rights in and to this software, related documentation
@@ -13,7 +13,7 @@
 #include <donut/core/math/math.h>
 #include <nvrhi/nvrhi.h>
 #include <memory>
-#include "Rtxdi/DI/ReSTIRDIParameters.h"
+#include <Rtxdi/DI/ReSTIRDIParameters.h>
 
 namespace donut::engine
 {
@@ -34,7 +34,7 @@ class RtxdiResources;
 class EnvironmentLight;
 struct ResamplingConstants;
 
-class RenderPass
+class LightingPasses
 {
 public:
     struct Settings
@@ -48,14 +48,14 @@ public:
         float brdfCutoff = 0.f;
     };
 
-    RenderPass(
+    LightingPasses(
         nvrhi::IDevice* device,
         std::shared_ptr<donut::engine::ShaderFactory> shaderFactory,
         std::shared_ptr<donut::engine::CommonRenderPasses> commonPasses,
         std::shared_ptr<donut::engine::Scene> scene,
         nvrhi::IBindingLayout* bindlessLayout);
 
-    void CreatePipeline();
+    void CreatePipelines();
 
     void CreateBindingSet(
         nvrhi::rt::IAccelStruct* topLevelAS,
@@ -75,8 +75,17 @@ public:
 private:
     nvrhi::DeviceHandle m_device;
 
-    nvrhi::ShaderHandle m_computeShader;
-    nvrhi::ComputePipelineHandle m_computePipeline;
+    nvrhi::ShaderHandle m_gbufferShader;
+    nvrhi::ShaderHandle m_initialSamplingShader;
+    nvrhi::ShaderHandle m_temporalResamplingShader;
+    nvrhi::ShaderHandle m_spatialResamplingShader;
+    nvrhi::ShaderHandle m_shadeSamplesShader;
+
+    nvrhi::ComputePipelineHandle m_gbufferPipeline;
+    nvrhi::ComputePipelineHandle m_initialSamplingPipeline;
+    nvrhi::ComputePipelineHandle m_temporalResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_spatialResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_shadeSamplesPipeline;
 
     nvrhi::BindingLayoutHandle m_bindingLayout;
     nvrhi::BindingLayoutHandle m_bindlessLayout;

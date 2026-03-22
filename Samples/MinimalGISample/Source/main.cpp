@@ -28,7 +28,7 @@
 
 #include "RenderTargets.h"
 #include "PrepareLightsPass.h"
-#include "RenderPass.h"
+#include "LightingPasses.h"
 #include "RtxdiResources.h"
 #include "SampleScene.h"
 #include "UserInterface.h"
@@ -121,7 +121,7 @@ public:
         GetDeviceManager()->SetVsyncEnabled(true);
 
         m_prepareLightsPass = std::make_unique<PrepareLightsPass>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_bindlessLayout);
-        m_renderPass = std::make_unique<RenderPass>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_bindlessLayout);
+        m_lightingPasses = std::make_unique<LightingPasses>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_bindlessLayout);
 
 
         LoadShaders();
@@ -155,7 +155,7 @@ public:
     void LoadShaders() const
     {
         m_prepareLightsPass->CreatePipeline();
-        m_renderPass->CreatePipeline();
+        m_lightingPasses->CreatePipelines();
     }
 
     bool LoadScene(std::shared_ptr<vfs::IFileSystem> fs, const std::filesystem::path& sceneFileName) override 
@@ -282,7 +282,7 @@ public:
         
         if (renderTargetsCreated || rtxdiResourcesCreated)
         {
-            m_renderPass->CreateBindingSet(
+            m_lightingPasses->CreateBindingSet(
                 m_scene->GetTopLevelAS(),
                 *m_renderTargets,
                 *m_rtxdiResources);
@@ -322,8 +322,7 @@ public:
         // but it's simpler to do so.
         RTXDI_LightBufferParameters lightBufferParams = m_prepareLightsPass->Process(m_commandList);
 
-        // Call the rendering pass - this includes primary rays, fused resampling, and shading
-        m_renderPass->Render(m_commandList,
+        m_lightingPasses->Render(m_commandList,
             *m_restirDIContext,
             m_view, m_viewPrevious,
             m_ui.lightingSettings,
@@ -335,8 +334,7 @@ public:
         m_commandList->close();
         GetDevice()->executeCommandList(m_commandList);
 
-        // Swap the even and odd frame buffers
-        m_renderPass->NextFrame();
+        m_lightingPasses->NextFrame();
         m_renderTargets->NextFrame();
 
         m_viewPrevious = m_view;
@@ -359,7 +357,7 @@ private:
 
     std::unique_ptr<rtxdi::ReSTIRDIContext> m_restirDIContext;
     std::unique_ptr<PrepareLightsPass> m_prepareLightsPass;
-    std::unique_ptr<RenderPass> m_renderPass;
+    std::unique_ptr<LightingPasses> m_lightingPasses;
     std::unique_ptr<RtxdiResources> m_rtxdiResources;
 
     UIData& m_ui;

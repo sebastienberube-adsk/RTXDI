@@ -60,6 +60,14 @@ RenderTargets::RenderTargets(nvrhi::IDevice* device, int2 size)
     PrevGBufferGeoNormals = device->createTexture(desc);
     
     desc.format = nvrhi::Format::RGBA16_FLOAT;
+    desc.debugName = "MotionVectors";
+    MotionVectors = device->createTexture(desc);
+
+    desc.format = nvrhi::Format::RGBA16_FLOAT;
+    desc.debugName = "Emissive";
+    Emissive = device->createTexture(desc);
+
+    desc.format = nvrhi::Format::RGBA16_FLOAT;
     desc.debugName = "HdrColor";
     HdrColor = device->createTexture(desc);
 }

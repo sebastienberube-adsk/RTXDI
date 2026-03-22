@@ -23,10 +23,6 @@
 #include "RenderPasses/GBufferPass.h"
 #include "RenderPasses/LightingPasses.h"
 
-#if WITH_NRD
-#include <NRD.h>
-#endif
-
 #include <optional>
 #include <string>
 
@@ -95,12 +91,8 @@ enum DebugRenderOutput
     GBufferEmissive,
     DiffuseLighting,
     SpecularLighting,
-    DenoisedDiffuseLighting,
-    DenoisedSpecularLighting,
     RestirLuminance,
     PrevRestirLuminance,
-    DiffuseConfidence,
-    SpecularConfidence,
     MotionVectors
 };
 
@@ -139,14 +131,7 @@ struct UIData
     float environmentIntensityBias = 0.f;
     float environmentRotation = 0.f;
     
-    bool enableDenoiser = true;
-#ifdef WITH_NRD
-    float debug = 0.0f;
-    nrd::Denoiser denoisingMethod = nrd::Denoiser::RELAX_DIFFUSE_SPECULAR;
-    nrd::ReblurSettings reblurSettings = {};
-    nrd::RelaxSettings relaxSettings = {};
-    void SetDefaultDenoiserSettings();
-#endif
+    bool enableDenoiser = false;
     float noiseMix = 0.33f;
     float noiseClampLow = 0.5f;
     float noiseClampHigh = 2.0f;
@@ -226,14 +211,9 @@ private:
     void SamplingSettings();
     void PostProcessSettings();
 
-#ifdef WITH_NRD
-    void DenoiserSettings();
-#endif
-
     UIData& m_ui;
     std::shared_ptr<donut::app::RegisteredFont> m_fontOpenSans;
     std::shared_ptr<donut::engine::Light> m_selectedLight;
 
     bool m_showAdvancedSamplingSettings;
-    bool m_showAdvancedDenoisingSettings;
 };

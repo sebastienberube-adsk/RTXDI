@@ -37,8 +37,6 @@
 #include "DebugViz/DebugVizPasses.h"
 #include "RenderPasses/AccumulationPass.h"
 #include "RenderPasses/CompositingPass.h"
-#include "RenderPasses/ConfidencePass.h"
-#include "RenderPasses/FilterGradientsPass.h"
 #include "RenderPasses/GBufferPass.h"
 #include "RenderPasses/GenerateMipsPass.h"
 #include "RenderPasses/GlassPass.h"
@@ -53,9 +51,6 @@
 #include "Testing.h"
 #include "UserInterface.h"
 
-#if WITH_NRD
-#include "NrdIntegration.h"
-#endif
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -159,8 +154,6 @@ public:
         m_profiler = std::make_shared<Profiler>(*GetDeviceManager());
         m_ui.resources->profiler = m_profiler;
 
-        m_filterGradientsPass = std::make_unique<FilterGradientsPass>(GetDevice(), m_shaderFactory);
-        m_confidencePass = std::make_unique<ConfidencePass>(GetDevice(), m_shaderFactory);
         m_compositingPass = std::make_unique<CompositingPass>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_bindlessLayout);
         m_accumulationPass = std::make_unique<AccumulationPass>(GetDevice(), m_shaderFactory);
         m_gBufferPass = std::make_unique<RaytracedGBufferPass>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_profiler, m_bindlessLayout);
@@ -270,8 +263,6 @@ public:
     
     void LoadShaders()
     {
-        m_filterGradientsPass->CreatePipeline();
-        m_confidencePass->CreatePipeline();
         m_compositingPass->CreatePipeline();
         m_accumulationPass->CreatePipeline();
         m_gBufferPass->CreatePipeline(m_ui.useRayQuery);
@@ -396,9 +387,6 @@ public:
         m_temporalAntiAliasingPass = nullptr;
         m_toneMappingPass = nullptr;
         m_bloomPass = nullptr;
-#if WITH_NRD
-        m_nrd = nullptr;
-#endif
     }
 
     void LoadEnvironmentMap()
@@ -554,10 +542,6 @@ public:
 
             m_glassPass->CreateBindingSet(m_scene->GetTopLevelAS(), m_scene->GetPrevTopLevelAS(), *m_renderTargets);
 
-            m_filterGradientsPass->CreateBindingSet(*m_renderTargets);
-
-            m_confidencePass->CreateBindingSet(*m_renderTargets);
-            
             m_accumulationPass->CreateBindingSet(*m_renderTargets);
 
             m_rasterizedGBufferPass->CreatePipeline(*m_renderTargets);
@@ -669,13 +653,6 @@ public:
             m_debugVizPasses->CreatePipelines();
         }
 
-#if WITH_NRD
-        if (!m_nrd)
-        {
-            m_nrd = std::make_unique<NrdIntegration>(GetDevice(), m_ui.denoisingMethod);
-            m_nrd->Initialize(m_renderTargets->Size.x, m_renderTargets->Size.y);
-        }
-#endif
     }
 
     virtual void RenderSplashScreen(nvrhi::IFramebuffer* framebuffer) override
@@ -858,10 +835,6 @@ public:
 
         m_previousFrameTimeStamp = steady_clock::now();
 
-#if WITH_NRD
-        if (m_nrd && m_nrd->GetDenoiser() != m_ui.denoisingMethod)
-            m_nrd = nullptr; // need to create a new one
-#endif
 
         if (m_ui.resetISContext)
         {
@@ -897,7 +870,6 @@ public:
         m_gBufferPass->NextFrame();
         m_postprocessGBufferPass->NextFrame();
         m_lightingPasses->NextFrame();
-        m_confidencePass->NextFrame();
         m_compositingPass->NextFrame();
         m_visualizationPass->NextFrame();
         m_renderTargets->NextFrame();
@@ -970,18 +942,6 @@ public:
             m_sunLight->irradiance = 0.f;
         }
         
-#if WITH_NRD
-        if (!(m_nrd && m_nrd->IsAvailable()))
-            m_ui.enableDenoiser = false;
-
-        uint32_t denoiserMode = (m_ui.enableDenoiser)
-            ? (m_ui.denoisingMethod == nrd::Denoiser::RELAX_DIFFUSE_SPECULAR) ? DENOISER_MODE_RELAX : DENOISER_MODE_REBLUR
-            : DENOISER_MODE_OFF;
-#else
-        m_ui.enableDenoiser = false;
-        uint32_t denoiserMode = DENOISER_MODE_OFF;
-#endif
-
         m_commandList->open();
 
         m_profiler->BeginFrame(m_commandList);
@@ -1060,32 +1020,12 @@ public:
         }
 
 
-#if WITH_NRD
-        if (restirDIContext.GetStaticParameters().CheckerboardSamplingMode != rtxdi::CheckerboardMode::Off)
-        {
-            m_ui.reblurSettings.checkerboardMode = nrd::CheckerboardMode::BLACK;
-            m_ui.relaxSettings.checkerboardMode = nrd::CheckerboardMode::BLACK;
-        }
-        else
-        {
-            m_ui.reblurSettings.checkerboardMode = nrd::CheckerboardMode::OFF;
-            m_ui.relaxSettings.checkerboardMode = nrd::CheckerboardMode::OFF;
-        }
-#endif
         
         LightingPasses::RenderSettings lightingSettings = m_ui.lightingSettings;
         lightingSettings.enablePreviousTLAS &= m_ui.enableAnimations;
         lightingSettings.enableAlphaTestedGeometry = m_ui.gbufferSettings.enableAlphaTestedGeometry;
         lightingSettings.enableTransparentGeometry = m_ui.gbufferSettings.enableTransparentGeometry;
-#if WITH_NRD
-        lightingSettings.reblurDiffHitDistanceParams = &m_ui.reblurSettings.hitDistanceParameters;
-        lightingSettings.reblurSpecHitDistanceParams = &m_ui.reblurSettings.hitDistanceParameters;
-        lightingSettings.denoiserMode = denoiserMode;
-#else
         lightingSettings.denoiserMode = DENOISER_MODE_OFF;
-#endif
-        if (lightingSettings.denoiserMode == DENOISER_MODE_OFF)
-            lightingSettings.enableGradients = false;
 
         const bool checkerboard = restirDIContext.GetStaticParameters().CheckerboardSamplingMode != rtxdi::CheckerboardMode::Off;
 
@@ -1093,19 +1033,13 @@ public:
         bool enableBrdfAndIndirectPass = m_ui.directLightingMode == DirectLightingMode::Brdf || m_ui.indirectLightingMode != IndirectLightingMode::None;
         bool enableIndirect = m_ui.indirectLightingMode != IndirectLightingMode::None;
 
-        // When indirect lighting is enabled, we don't want ReSTIR to be the NRD front-end,
-        // it should just write out the raw color data.
         ReSTIRDI_ShadingParameters restirDIShadingParams = m_isContext->GetReSTIRDIContext().GetShadingParameters();
-        restirDIShadingParams.enableDenoiserInputPacking = !enableIndirect;
+        restirDIShadingParams.enableDenoiserInputPacking = false;
         m_isContext->GetReSTIRDIContext().SetShadingParameters(restirDIShadingParams);
 
         if (!enableDirectReStirPass)
         {
-            // Secondary resampling can only be done as a post-process of ReSTIR direct lighting
             lightingSettings.brdfptParams.enableSecondaryResampling = false;
-
-            // Gradients are only produced by the direct ReSTIR pass
-            lightingSettings.enableGradients = false;
         }
 
         if (enableDirectReStirPass || enableIndirect)
@@ -1126,18 +1060,12 @@ public:
                 m_view,
                 lightingSettings);
 
-            // Post-process the gradients into a confidence buffer usable by NRD
-            if (lightingSettings.enableGradients)
-            {
-                m_filterGradientsPass->Render(m_commandList, m_view, checkerboard);
-                m_confidencePass->Render(m_commandList, m_view, lightingSettings.gradientLogDarknessBias, lightingSettings.gradientSensitivity, lightingSettings.confidenceHistoryLength, checkerboard);
-            }
         }
 
         if (enableBrdfAndIndirectPass)
         {
             restirDIShadingParams = m_isContext->GetReSTIRDIContext().GetShadingParameters();
-            restirDIShadingParams.enableDenoiserInputPacking = true;
+            restirDIShadingParams.enableDenoiserInputPacking = false;
             m_isContext->GetReSTIRDIContext().SetShadingParameters(restirDIShadingParams);
 
             bool enableReSTIRGI = m_ui.indirectLightingMode == IndirectLightingMode::ReStirGI;
@@ -1165,27 +1093,12 @@ public:
             m_commandList->clearTextureFloat(m_renderTargets->SpecularLighting, nvrhi::AllSubresources, nvrhi::Color(0.f));
         }
         
-#if WITH_NRD
-        if (m_ui.enableDenoiser)
-        {
-            ProfilerScope scope(*m_profiler, m_commandList, ProfilerSection::Denoising);
-            m_commandList->beginMarker("Denoising");
-
-            const void* methodSettings = (m_ui.denoisingMethod == nrd::Denoiser::RELAX_DIFFUSE_SPECULAR)
-                ? (void*)&m_ui.relaxSettings
-                : (void*)&m_ui.reblurSettings;
-
-            m_nrd->RunDenoiserPasses(m_commandList, *m_renderTargets, m_view, m_viewPrevious, GetFrameIndex(), lightingSettings.enableGradients, methodSettings, m_ui.debug);
-            
-            m_commandList->endMarker();
-        }
-#endif
 
         m_compositingPass->Render(
             m_commandList,
             m_view,
             m_viewPrevious,
-            denoiserMode,
+            DENOISER_MODE_OFF,
             checkerboard,
             m_ui,
             *m_environmentLight);
@@ -1269,16 +1182,6 @@ public:
             uint32_t inputBufferIndex = 0;
             switch(m_ui.visualizationMode)
             {
-            case VIS_MODE_DENOISED_DIFFUSE:
-            case VIS_MODE_DENOISED_SPECULAR:
-                haveSignal = m_ui.enableDenoiser;
-                break;
-
-            case VIS_MODE_DIFFUSE_CONFIDENCE:
-            case VIS_MODE_SPECULAR_CONFIDENCE:
-                haveSignal = m_ui.lightingSettings.enableGradients && m_ui.enableDenoiser;
-                break;
-
             case VIS_MODE_RESERVOIR_WEIGHT:
             case VIS_MODE_RESERVOIR_M:
                 inputBufferIndex = m_lightingPasses->GetOutputReservoirBufferIndex();
@@ -1339,23 +1242,11 @@ public:
             case SpecularLighting:
                 m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->SpecularLighting, &m_bindingCache);
                 break;
-            case DenoisedDiffuseLighting:
-                m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->DenoisedDiffuseLighting, &m_bindingCache);
-                break;
-            case DenoisedSpecularLighting:
-                m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->DenoisedSpecularLighting, &m_bindingCache);
-                break;
             case RestirLuminance:
                 m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->RestirLuminance, &m_bindingCache);
                 break;
             case PrevRestirLuminance:
                 m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->PrevRestirLuminance, &m_bindingCache);
-                break;
-            case DiffuseConfidence:
-                m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->DiffuseConfidence, &m_bindingCache);
-                break;
-            case SpecularConfidence:
-                m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->SpecularConfidence, &m_bindingCache);
                 break;
             case MotionVectors:
                 m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->MotionVectors, &m_bindingCache);
@@ -1415,8 +1306,6 @@ private:
     std::unique_ptr<RasterizedGBufferPass> m_rasterizedGBufferPass;
     std::unique_ptr<PostprocessGBufferPass> m_postprocessGBufferPass;
     std::unique_ptr<GlassPass> m_glassPass;
-    std::unique_ptr<FilterGradientsPass> m_filterGradientsPass;
-    std::unique_ptr<ConfidencePass> m_confidencePass;
     std::unique_ptr<CompositingPass> m_compositingPass;
     std::unique_ptr<AccumulationPass> m_accumulationPass;
     std::unique_ptr<PrepareLightsPass> m_prepareLightsPass;
@@ -1432,9 +1321,6 @@ private:
 
     uint32_t m_renderFrameIndex = 0;
 
-#if WITH_NRD
-    std::unique_ptr<NrdIntegration> m_nrd;
-#endif
 
     UIData& m_ui;
     CommandLineArguments& m_args;

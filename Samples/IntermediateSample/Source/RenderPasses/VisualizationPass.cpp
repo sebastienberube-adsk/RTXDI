@@ -97,20 +97,11 @@ void VisualizationPass::Render(
 
         m_hdrPipeline = m_device->createGraphicsPipeline(pipelineDesc, framebuffer);
 
-        pipelineDesc.setPixelShader(m_confidencePixelShader);
-        pipelineDesc.bindingLayouts.resize(0);
-        pipelineDesc.addBindingLayout(m_confidenceBindingLayout);
-
-        m_confidencePipeline = m_device->createGraphicsPipeline(pipelineDesc, framebuffer);
     }
 
-    bool confidence = 
-        (visualizationMode == VIS_MODE_DIFFUSE_CONFIDENCE) ||
-        (visualizationMode == VIS_MODE_SPECULAR_CONFIDENCE);
-
     auto state = nvrhi::GraphicsState()
-        .setPipeline(confidence ? m_confidencePipeline : m_hdrPipeline)
-        .addBindingSet(confidence ? m_confidenceBindingSet : m_hdrBindingSet)
+        .setPipeline(m_hdrPipeline)
+        .addBindingSet(m_hdrBindingSet)
         .setFramebuffer(framebuffer)
         .setViewport(upscaledView.GetViewportState());
 

@@ -63,10 +63,6 @@ UIData::UIData()
     restirGI.finalShadingParams = rtxdi::GetDefaultReSTIRGIFinalShadingParams();
 
     ApplyPreset();
-
-#ifdef WITH_NRD
-    SetDefaultDenoiserSettings();
-#endif
 }
 
 void UIData::ApplyPreset()
@@ -97,7 +93,6 @@ void UIData::ApplyPreset()
         restirDI.spatialResamplingParams.numDisocclusionBoostSamples = 2;
         restirDI.shadingParams.reuseFinalVisibility = true;
         lightingSettings.brdfptParams.enableSecondaryResampling = false;
-        lightingSettings.enableGradients = false;
         break;
 
     case QualityPreset::Medium:
@@ -122,7 +117,6 @@ void UIData::ApplyPreset()
         lightingSettings.brdfptParams.secondarySurfaceReSTIRDIParams.spatialResamplingParams.spatialSamplingRadius = 1.f;
         lightingSettings.brdfptParams.secondarySurfaceReSTIRDIParams.spatialResamplingParams.numSpatialSamples = 1;
         lightingSettings.brdfptParams.secondarySurfaceReSTIRDIParams.spatialResamplingParams.spatialBiasCorrection = ReSTIRDI_SpatialBiasCorrectionMode::Basic;
-        lightingSettings.enableGradients = true;
         break;
 
     case QualityPreset::Unbiased:
@@ -147,7 +141,6 @@ void UIData::ApplyPreset()
         lightingSettings.brdfptParams.secondarySurfaceReSTIRDIParams.spatialResamplingParams.spatialSamplingRadius = 1.f;
         lightingSettings.brdfptParams.secondarySurfaceReSTIRDIParams.spatialResamplingParams.numSpatialSamples = 1;
         lightingSettings.brdfptParams.secondarySurfaceReSTIRDIParams.spatialResamplingParams.spatialBiasCorrection = ReSTIRDI_SpatialBiasCorrectionMode::Raytraced;
-        lightingSettings.enableGradients = true;
         break;
 
     case QualityPreset::Ultra:
@@ -173,7 +166,6 @@ void UIData::ApplyPreset()
         lightingSettings.brdfptParams.secondarySurfaceReSTIRDIParams.spatialResamplingParams.spatialSamplingRadius = 4.f;
         lightingSettings.brdfptParams.secondarySurfaceReSTIRDIParams.spatialResamplingParams.numSpatialSamples = 2;
         lightingSettings.brdfptParams.secondarySurfaceReSTIRDIParams.spatialResamplingParams.spatialBiasCorrection = ReSTIRDI_SpatialBiasCorrectionMode::Raytraced;
-        lightingSettings.enableGradients = true;
         break;
 
     case QualityPreset::Reference:
@@ -189,7 +181,6 @@ void UIData::ApplyPreset()
         restirDI.temporalResamplingParams.enableBoilingFilter = false;
         restirDI.temporalResamplingParams.boilingFilterStrength = 0.0f;
         lightingSettings.brdfptParams.enableSecondaryResampling = false;
-        lightingSettings.enableGradients = false;
         break;
 
     case QualityPreset::Custom:
@@ -204,32 +195,11 @@ void UIData::ApplyPreset()
     }
 }
 
-#ifdef WITH_NRD
-void UIData::SetDefaultDenoiserSettings()
-{
-    reblurSettings = nrd::ReblurSettings();
-    reblurSettings.enableAntiFirefly = true;
-    reblurSettings.diffusePrepassBlurRadius = 30.0f;
-    reblurSettings.specularPrepassBlurRadius = 30.0f;
-    
-    relaxSettings = nrd::RelaxSettings();
-    relaxSettings.diffuseMaxFastAccumulatedFrameNum = 1;
-    relaxSettings.specularMaxFastAccumulatedFrameNum = 1;
-    relaxSettings.diffusePhiLuminance = 1.0f;
-    relaxSettings.spatialVarianceEstimationHistoryThreshold = 1;
-    relaxSettings.enableAntiFirefly = true;
-    relaxSettings.diffusePrepassBlurRadius = 30.0f;
-    relaxSettings.specularPrepassBlurRadius = 30.0f;
-}
-#endif
-
-
 UserInterface::UserInterface(app::DeviceManager* deviceManager, vfs::IFileSystem& rootFS, UIData& ui) :
     ImGui_Renderer(deviceManager),
     m_ui(ui),
     m_fontOpenSans(nullptr),
-    m_showAdvancedSamplingSettings(false),
-    m_showAdvancedDenoisingSettings(false)
+    m_showAdvancedSamplingSettings(false)
 {
     m_fontOpenSans = CreateFontFromFile(rootFS, "/media/fonts/OpenSans/OpenSans-Regular.ttf", 17.f);
 }
@@ -897,14 +867,10 @@ void UserInterface::PostProcessSettings()
             "Resolved Color\0"
             "Diffuse\0"
             "Specular\0"
-            "Diffuse (Denoised)\0"
-            "Specular (Denoised)\0"
             "Reservoir Weight\0"
             "Reservoir M\0"
             "Diffuse Gradients\0"
             "Specular Gradients\0"
-            "Diffuse Confidence\0"
-            "Specular Confidence\0"
             "GI Reservoir Weight\0"
             "GI Reservoir M\0"
         );
@@ -913,8 +879,7 @@ void UserInterface::PostProcessSettings()
             "The cross-section is taken in the middle of the screen, at the yellow line.\n"
             "Horizontal lines show the values in log scale: the yellow line in the middle is 1.0,\n"
             "above it are 10, 100, etc., and below it are 0.1, 0.01, etc.\n"
-            "The yellow \"fire\" at the bottom is shown where the displayed value is 0.\n"
-            "For confidence, shows a heat map with blue at full confidence and red at zero."
+            "The yellow \"fire\" at the bottom is shown where the displayed value is 0."
         );
         ImGui::Combo("Debug Render Target", (int*)&m_ui.debugRenderOutputBuffer,
             "LDR Color\0"
@@ -926,12 +891,8 @@ void UserInterface::PostProcessSettings()
             "GBufferEmissive\0"
             "DiffuseLighting\0"
             "SpecularLighting\0"
-            "DenoisedDiffuseLighting\0"
-            "DenoisedSpecularLighting\0"
             "RestirLuminance\0"
             "PrevRestirLuminance\0"
-            "DiffuseConfidence\0"
-            "SpecularConfidence\0"
             "MotionVectors\0"
         );
         ImGui::PopItemWidth();
@@ -940,119 +901,6 @@ void UserInterface::PostProcessSettings()
     }
 }
 
-#ifdef WITH_NRD
-void UserInterface::DenoiserSettings()
-{
-    const nrd::LibraryDesc* nrdLibraryDesc = nrd::GetLibraryDesc();
-
-    char s[128];
-    snprintf(s, sizeof(s) - 1, "Denoising (NRD v%u.%u.%u)", nrdLibraryDesc->versionMajor, nrdLibraryDesc->versionMinor, nrdLibraryDesc->versionBuild);
-
-    if (ImGui_ColoredTreeNode(s, c_ColorAttentionHeader))
-    {
-        ImGui::Checkbox("Enable Denoiser", &m_ui.enableDenoiser);
-
-        if (m_ui.enableDenoiser)
-        {
-            ImGui::SameLine();
-            ImGui::Checkbox("Advanced Settings", &m_showAdvancedDenoisingSettings);
-
-            int useReLAX = (m_ui.denoisingMethod == nrd::Denoiser::RELAX_DIFFUSE_SPECULAR) ? 1 : 0;
-            ImGui::Combo("Denoiser", &useReLAX, "ReBLUR\0ReLAX\0");
-            m_ui.denoisingMethod = useReLAX ? nrd::Denoiser::RELAX_DIFFUSE_SPECULAR : nrd::Denoiser::REBLUR_DIFFUSE_SPECULAR;
-            
-            ImGui::SameLine();
-            if (ImGui::Button("Reset Settings"))
-                m_ui.SetDefaultDenoiserSettings();
-
-            ImGui::Separator();
-            ImGui::PushItemWidth(160.f);
-            ImGui::SliderFloat("Noise Mix-in", &m_ui.noiseMix, 0.f, 1.f);
-            ImGui::PopItemWidth();
-            ImGui::PushItemWidth(76.f);
-            ImGui::SliderFloat("##noiseClampLow", &m_ui.noiseClampLow, 0.f, 1.f);
-            ImGui::SameLine();
-            ImGui::SliderFloat("Noise Clamp", &m_ui.noiseClampHigh, 1.f, 4.f);
-            ImGui::PopItemWidth();
-
-            ImGui::Separator();
-            ImGui::Checkbox("Use Confidence Input", (bool*)&m_ui.lightingSettings.enableGradients);
-            if (m_ui.lightingSettings.enableGradients && m_showAdvancedDenoisingSettings)
-            {
-                ImGui::SliderFloat("Gradient Sensitivity", &m_ui.lightingSettings.gradientSensitivity, 1.f, 20.f);
-                ImGui::SliderFloat("Darkness Bias (EV)", &m_ui.lightingSettings.gradientLogDarknessBias, -16.f, -4.f);
-                ImGui::SliderFloat("Confidence History Length", &m_ui.lightingSettings.confidenceHistoryLength, 0.f, 3.f);
-            }
-
-            if (m_showAdvancedDenoisingSettings)
-            {
-                ImGui::Separator();
-                ImGui::PushItemWidth(160.f);
-                if (useReLAX)
-                {
-                    ImGui::SliderInt("History length (frames)", (int*)&m_ui.relaxSettings.diffuseMaxAccumulatedFrameNum, 0, nrd::RELAX_MAX_HISTORY_FRAME_NUM);
-                    ImGui::SliderInt("Fast history length (frames)", (int*)&m_ui.relaxSettings.diffuseMaxFastAccumulatedFrameNum, 0, nrd::RELAX_MAX_HISTORY_FRAME_NUM);
-                    ImGui::Checkbox("Anti-firefly", &m_ui.relaxSettings.enableAntiFirefly);
-                    ImGui::SameLine();
-                    ImGui::Checkbox("Roughness edge stopping", &m_ui.relaxSettings.enableRoughnessEdgeStopping);
-
-                    ImGui::Text("Reprojection:");
-                    ImGui::SliderFloat("Spec variance boost", &m_ui.relaxSettings.specularVarianceBoost, 0.0f, 8.0f, "%.2f");
-                    ImGui::SliderFloat("Clamping sigma scale", &m_ui.relaxSettings.fastHistoryClampingSigmaScale, 0.0f, 10.0f, "%.1f");
-
-                    ImGui::Text("Spatial filering:");
-                    ImGui::SliderFloat2("Pre-pass blur radius (px)", &m_ui.relaxSettings.diffusePrepassBlurRadius, 0.0f, 50.0f, "%.1f");
-                    ImGui::SliderInt("A-trous iterations", (int32_t*)&m_ui.relaxSettings.atrousIterationNum, 2, 8);
-                    ImGui::SliderFloat2("Diff-Spec luma weight", &m_ui.relaxSettings.diffusePhiLuminance, 0.0f, 10.0f, "%.1f");
-                    ImGui::SliderFloat("Lobe fraction", &m_ui.relaxSettings.lobeAngleFraction, 0.0f, 1.0f, "%.2f");
-                    ImGui::SetNextItemWidth( ImGui::CalcItemWidth() * 0.9f );
-                    ImGui::SliderFloat3("Luma-Normal-Rough relaxation", &m_ui.relaxSettings.luminanceEdgeStoppingRelaxation, 0.0f, 1.0f, "%.2f");
-                    ImGui::SliderFloat("Spec lobe angle slack", &m_ui.relaxSettings.specularLobeAngleSlack, 0.0f, 89.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-                    ImGui::SliderFloat2("Diff-Spec min luma weight", &m_ui.relaxSettings.diffuseMinLuminanceWeight, 0.0f, 1.0f, "%.2f");
-                    ImGui::SliderFloat("Depth threshold", &m_ui.relaxSettings.depthThreshold, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-                    
-                    ImGui::Text("Spatial variance estimation:");
-                    ImGui::SliderInt("History threshold", (int32_t*)&m_ui.relaxSettings.spatialVarianceEstimationHistoryThreshold, 0, 10);
-
-                    ImGui::Text("Anti-lag:");
-                    ImGui::SliderFloat("Acceleration amount", &m_ui.relaxSettings.antilagSettings.accelerationAmount, 0.0f, 1.0f, "%.2f");
-                    ImGui::SliderFloat("Spatial sigma scale", &m_ui.relaxSettings.antilagSettings.spatialSigmaScale, 0.0f, 10.0f, "%.1f");
-                    ImGui::SliderFloat("Temporal sigma scale", &m_ui.relaxSettings.antilagSettings.temporalSigmaScale, 0.0f, 10.0f, "%.1f");
-                    ImGui::SliderFloat("Reset amount", &m_ui.relaxSettings.antilagSettings.resetAmount, 0.0f, 1.0f, "%.2f");
-                }
-                else
-                {
-                    ImGui::SliderInt("History length (frames)", (int*)&m_ui.reblurSettings.maxAccumulatedFrameNum, 0, nrd::REBLUR_MAX_HISTORY_FRAME_NUM);
-                    ImGui::Checkbox("Anti-firefly", &m_ui.reblurSettings.enableAntiFirefly);
-
-                    ImGui::Text("Spatial filering:");
-                    ImGui::SliderFloat2("Pre-pass blur radius (px)", &m_ui.reblurSettings.diffusePrepassBlurRadius, 0.0f, 50.0f, "%.1f");
-                    ImGui::SliderFloat("Max blur radius (px)", &m_ui.reblurSettings.maxBlurRadius, 0.0f, 30.0f, "%.1f");
-                    ImGui::SliderFloat("Lobe fraction", &m_ui.reblurSettings.lobeAngleFraction, 0.0f, 1.0f, "%.2f");
-                    ImGui::SliderFloat("Roughness fraction", &m_ui.reblurSettings.roughnessFraction, 0.0f, 1.0f, "%.2f");
-                    m_ui.reblurSettings.maxStabilizedFrameNum = std::min(m_ui.reblurSettings.maxStabilizedFrameNum, m_ui.reblurSettings.maxAccumulatedFrameNum);
-                    ImGui::SliderInt("Stabilization (frames)", (int*)&m_ui.reblurSettings.maxStabilizedFrameNum, 0, m_ui.reblurSettings.maxAccumulatedFrameNum);
-                    ImGui::SetNextItemWidth( ImGui::CalcItemWidth() * 0.6f );
-                    ImGui::SliderFloat("Responsive accum roughness threshold", &m_ui.reblurSettings.responsiveAccumulationSettings.roughnessThreshold, 0.0f, 1.0f, "%.2f");
-
-                    if (m_ui.reblurSettings.maxAccumulatedFrameNum && m_ui.reblurSettings.maxStabilizedFrameNum)
-                    {
-                        ImGui::Text("Anti-lag:");
-                        ImGui::SliderFloat("Sigma scale", &m_ui.reblurSettings.antilagSettings.luminanceSigmaScale, 1.0f, 5.0f, "%.1f");
-                        ImGui::SliderFloat("Sensitivity", &m_ui.reblurSettings.antilagSettings.luminanceSensitivity, 1.0f, 5.0f, "%.2f");
-                    }
-                }
-
-                ImGui::PopItemWidth();
-            }
-        }
-
-        ImGui::TreePop();
-    }
-
-    ImGui::Separator();
-}
-#endif
 
 void UserInterface::CopySelectedLight() const
 {
@@ -1478,9 +1326,6 @@ void UserInterface::buildUI()
         SceneSettings();
         GeneralRenderingSettings();
         SamplingSettings();
-#ifdef WITH_NRD
-        DenoiserSettings();
-#endif
         PostProcessSettings();
         ImGui::PopItemWidth();
     }

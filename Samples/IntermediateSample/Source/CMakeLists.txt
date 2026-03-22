@@ -10,10 +10,6 @@ set(sources
 	"RenderPasses/AccumulationPass.h"
 	"RenderPasses/CompositingPass.cpp"
 	"RenderPasses/CompositingPass.h"
-	"RenderPasses/ConfidencePass.cpp"
-	"RenderPasses/ConfidencePass.h"
-	"RenderPasses/FilterGradientsPass.cpp"
-	"RenderPasses/FilterGradientsPass.h"
 	"RenderPasses/GBufferPass.cpp"
 	"RenderPasses/GBufferPass.h"
 	"RenderPasses/GenerateMipsPass.cpp"
@@ -32,8 +28,6 @@ set(sources
 	"RenderPasses/VisualizationPass.h"
 	"AppDefines.h"
 	"main.cpp"
-	"NrdIntegration.cpp"
-	"NrdIntegration.h"
 	"Profiler.cpp"
 	"Profiler.h"
 	"ProfilerSections.h"
@@ -71,11 +65,4 @@ target_link_libraries(${project} donut_core donut_engine donut_app donut_render 
 add_dependencies(${project} IntermediateSampleShaders)
 set_target_properties(${project} PROPERTIES FOLDER ${folder})
 
-if (TARGET NRD)
-	target_compile_definitions(${project} PRIVATE WITH_NRD=1)
-	target_link_libraries(${project} NRD)
-	
-	# NRD doesn't add a public include path at this time, work around that
-	target_include_directories(${project} PRIVATE "${CMAKE_SOURCE_DIR}/NRD/Include")
-endif()
 

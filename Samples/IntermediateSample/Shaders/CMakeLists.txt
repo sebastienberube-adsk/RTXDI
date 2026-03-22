@@ -12,9 +12,6 @@ set(shaders
    DebugViz/NDirOctUNorm32Viz.hlsl
    DebugViz/PackedR11G11B10UFloatViz.hlsl
    DebugViz/PackedR8G8B8A8GammaUFloatViz.hlsl
-   DenoisingPasses/ComputeGradients.hlsl
-   DenoisingPasses/ConfidencePass.hlsl
-   DenoisingPasses/FilterGradientsPass.hlsl
    LightingPasses/DI/FusedResampling.hlsl
    LightingPasses/DI/GenerateInitialSamples.hlsl
    LightingPasses/DI/ShadeSamples.hlsl
@@ -60,7 +57,6 @@ set(shaders
    RenderEnvironmentMap.hlsl
    SceneGeometry.hlsli
    ShaderParameters.h
-   VisualizeConfidence.hlsl
    VisualizeHdrSignals.hlsl)
 
 # Organize MSVS filters (the little folders in the solution explorer) to match the folder structure
@@ -78,11 +74,7 @@ add_custom_target(${shaders_target}
     DEPENDS ShaderMake
     SOURCES ${shaders} Shaders.cfg)
 
-if(TARGET NRD)
-   set(NRD_OPTIONS -I "${CMAKE_CURRENT_SOURCE_DIR}/../../../external/NRD/Shaders/Include" -D WITH_NRD -D NRD_USE_OCT_NORMAL_ENCODING=0 -D NRD_USE_MATERIAL_ID=0)
-else()
-   set(NRD_OPTIONS --relaxedInclude NRD.hlsli)
-endif()
+set(NRD_OPTIONS --relaxedInclude NRD.hlsli)
 
 set (OUTPUT_PATH_BASE "${CMAKE_BINARY_DIR}/bin/shaders/intermediate-sample")
 

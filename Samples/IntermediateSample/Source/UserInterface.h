@@ -70,9 +70,6 @@ enum class AntiAliasingMode : uint32_t
     None,
     Accumulation,
     TAA,
-#ifdef WITH_DLSS
-    DLSS,
-#endif
 };
 
 struct UIResources
@@ -128,11 +125,7 @@ struct UIData
 
     QualityPreset preset = QualityPreset::Medium;
 
-#ifdef WITH_DLSS
-    AntiAliasingMode aaMode = AntiAliasingMode::DLSS;
-#else
     AntiAliasingMode aaMode = AntiAliasingMode::TAA;
-#endif
 
     uint32_t numAccumulatedFrames = 1;
 
@@ -157,12 +150,6 @@ struct UIData
     float noiseMix = 0.33f;
     float noiseClampLow = 0.5f;
     float noiseClampHigh = 2.0f;
-
-#ifdef WITH_DLSS
-    bool dlssAvailable = false;
-    float dlssExposureScale = 2.f;
-    float dlssSharpness = 0.f;
-#endif
 
     float resolutionScale = 1.f;
 

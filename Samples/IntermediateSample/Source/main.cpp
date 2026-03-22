@@ -57,10 +57,6 @@
 #include "NrdIntegration.h"
 #endif
 
-#if WITH_DLSS
-#include "DLSS.h"
-#endif
-
 #ifndef _WIN32
 #include <unistd.h>
 #else
@@ -174,19 +170,6 @@ public:
         m_prepareLightsPass = std::make_unique<PrepareLightsPass>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_bindlessLayout);
         m_lightingPasses = std::make_unique<LightingPasses>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_profiler, m_bindlessLayout);
 
-
-#if WITH_DLSS
-        {
-#if DONUT_WITH_DX12
-            if (GetDevice()->getGraphicsAPI() == nvrhi::GraphicsAPI::D3D12)
-                m_dlss = DLSS::CreateDX12(GetDevice(), *m_shaderFactory);
-#endif
-#if DONUT_WITH_VULKAN
-            if (GetDevice()->getGraphicsAPI() == nvrhi::GraphicsAPI::VULKAN)
-                m_dlss = DLSS::CreateVK(GetDevice(), *m_shaderFactory);
-#endif
-        }
-#endif
 
         LoadShaders();
 
@@ -693,13 +676,6 @@ public:
             m_nrd->Initialize(m_renderTargets->Size.x, m_renderTargets->Size.y);
         }
 #endif
-#if WITH_DLSS
-        {
-            m_dlss->SetRenderSize(m_renderTargets->Size.x, m_renderTargets->Size.y, m_renderTargets->Size.x, m_renderTargets->Size.y);
-            
-            m_ui.dlssAvailable = m_dlss->IsAvailable();
-        }
-#endif
     }
 
     virtual void RenderSplashScreen(nvrhi::IFramebuffer* framebuffer) override
@@ -751,13 +727,6 @@ public:
             m_temporalAntiAliasingPass->TemporalResolve(commandList, taaParams, m_previousViewValid, m_view, m_upscaledView);
             break;
         }
-
-#if WITH_DLSS
-        case AntiAliasingMode::DLSS: {
-            m_dlss->Render(commandList, *m_renderTargets, m_toneMappingPass->GetExposureBuffer(), m_ui.dlssExposureScale, m_ui.dlssSharpness, m_ui.rasterizeGBuffer, m_ui.resetAccumulation, m_view, m_viewPrevious);
-            break;
-        }
-#endif
         }
     }
 
@@ -925,11 +894,6 @@ public:
         UpdateReSTIRDIContextFromUI();
         UpdateReGIRContextFromUI();
         UpdateReSTIRGIContextFromUI();
-#if WITH_DLSS
-        if (!m_ui.dlssAvailable && m_ui.aaMode == AntiAliasingMode::DLSS)
-            m_ui.aaMode = AntiAliasingMode::TAA;
-#endif
-
         m_gBufferPass->NextFrame();
         m_postprocessGBufferPass->NextFrame();
         m_lightingPasses->NextFrame();
@@ -1241,14 +1205,7 @@ public:
 
         if (m_ui.enableBloom)
         {
-#if WITH_DLSS
-            // Use the unresolved image for bloom when DLSS is active because DLSS can modify HDR values significantly and add bloom flicker.
-            nvrhi::ITexture* bloomSource = (m_ui.aaMode == AntiAliasingMode::DLSS && m_ui.resolutionScale == 1.f)
-                ? m_renderTargets->HdrColor
-                : m_renderTargets->ResolvedColor;
-#else
-            nvrhi::ITexture* bloomSource = m_RenderTargets->ResolvedColor;
-#endif
+            nvrhi::ITexture* bloomSource = m_renderTargets->ResolvedColor;
 
             m_bloomPass->Render(m_commandList, m_renderTargets->ResolvedFramebuffer, m_upscaledView, bloomSource, 32.f, 0.005f);
         }
@@ -1479,10 +1436,6 @@ private:
     std::unique_ptr<NrdIntegration> m_nrd;
 #endif
 
-#if WITH_DLSS
-    std::unique_ptr<DLSS> m_dlss;
-#endif
-
     UIData& m_ui;
     CommandLineArguments& m_args;
     uint m_framesSinceAnimation = 0;
@@ -1540,28 +1493,7 @@ int main(int argc, char** argv)
         deviceParams.deviceCreateInfoCallback = [](VkDeviceCreateInfo& info) {
             auto features = const_cast<VkPhysicalDeviceFeatures*>(info.pEnabledFeatures);
             features->fragmentStoresAndAtomics = VK_TRUE;
-#if WITH_DLSS
-            features->shaderStorageImageWriteWithoutFormat = VK_TRUE;
-#endif
         };
-
-#if WITH_DLSS
-        DLSS::GetRequiredVulkanExtensions(
-            deviceParams.optionalVulkanInstanceExtensions,
-            deviceParams.optionalVulkanDeviceExtensions);
-
-        // Currently, DLSS on Vulkan produces these validation errors. Silence them.
-        // Re-evaluate when updating DLSS.
-
-        // VkDeviceCreateInfo->ppEnabledExtensionNames must not contain both VK_KHR_buffer_device_address and VK_EXT_buffer_device_address
-        deviceParams.ignoredVulkanValidationMessageLocations.push_back(0xffffffff83a6bda8);
-        
-        // If VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT is set, bufferDeviceAddress must be enabled.
-        deviceParams.ignoredVulkanValidationMessageLocations.push_back(0xfffffffff972dfbf);
-
-        // vkCmdCuLaunchKernelNVX: required parameter pLaunchInfo->pParams specified as NULL.
-        deviceParams.ignoredVulkanValidationMessageLocations.push_back(0x79de34d4);
-#endif
 }
 #endif
 

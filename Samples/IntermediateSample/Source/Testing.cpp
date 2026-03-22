@@ -43,10 +43,6 @@ std::istream& operator>> (std::istream& is, AntiAliasingMode& mode)
         mode = AntiAliasingMode::Accumulation;
     else if (s == "TAA")
         mode = AntiAliasingMode::TAA;
-#if WITH_DLSS
-    else if (s == "DLSS")
-        mode = AntiAliasingMode::DLSS;
-#endif
     else
         throw cxxopts::exceptions::exception("Unrecognized value passed to the --aa-mode argument.");
     
@@ -175,7 +171,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
     std::string denoiserMode;
 
     options.add_options()
-        ("aa-mode", "Anti-aliasing mode: OFF, ACC, TAA, DLSS (if supported)", value(ui.aaMode))
+        ("aa-mode", "Anti-aliasing mode: OFF, ACC, TAA", value(ui.aaMode))
         ("alpha-tested", "Alpha-tested materials toggle", value(ui.gbufferSettings.enableAlphaTestedGeometry))
         ("animation", "Animations toggle", value(ui.enableAnimations))
         ("benchmark", "Run the benchmark", value(args.benchmark))

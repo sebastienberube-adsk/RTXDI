@@ -840,13 +840,6 @@ void UserInterface::PostProcessSettings()
         ImGui::RadioButton("Accumulation", (int*)&m_ui.aaMode, (int)AntiAliasingMode::Accumulation);
         ImGui::SameLine();
         ImGui::RadioButton("TAAU", (int*)&m_ui.aaMode, (int)AntiAliasingMode::TAA);
-#if WITH_DLSS
-        if (m_ui.dlssAvailable)
-        {
-            ImGui::SameLine();
-            ImGui::RadioButton("DLSS", (int*)&m_ui.aaMode, (int)AntiAliasingMode::DLSS);
-        }
-#endif
         if (m_ui.aaMode != previousAAMode)
             m_ui.resetAccumulation = true;
 
@@ -888,13 +881,6 @@ void UserInterface::PostProcessSettings()
             ImGui::Separator();
         }
 
-#if WITH_DLSS
-        if (m_ui.dlssAvailable)
-        {
-            // ImGui::SliderFloat("DLSS Exposure Scale", &m_ui.dlssExposureScale, 0.125f, 16.f, "%.3f", ImGuiSliderFlags_Logarithmic);
-            // ImGui::SliderFloat("DLSS Sharpness", &m_ui.dlssSharpness, 0.f, 1.f);
-        }
-#endif
         m_ui.resetAccumulation |= ImGui::Checkbox("Apply Textures in Compositing", (bool*)&m_ui.enableTextures);
         
         ImGui::Checkbox("Tone mapping", (bool*)&m_ui.enableToneMapping);

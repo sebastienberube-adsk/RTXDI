@@ -38,7 +38,7 @@ static const char* g_SectionNames[ProfilerSection::Count] = {
     "Gradients",
     "Denoising",
     "Glass",
-    "TAA or DLSS",
+    "TAA",
     "Frame Time (GPU)",
     "(Material Readback)"
 };

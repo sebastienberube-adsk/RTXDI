@@ -45,7 +45,6 @@ set(shaders
    AccumulationPass.hlsl
    BRDFPTParameters.h
    CompositingPass.hlsl
-   DlssExposure.hlsl
    GBufferHelpers.hlsli
    GlassPass.hlsl
    HelperFunctions.hlsli

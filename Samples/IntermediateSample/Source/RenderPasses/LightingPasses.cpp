@@ -25,10 +25,6 @@
 
 #include <utility>
 
-#if WITH_NRD
-#include <NRD.h>
-#endif
-
 using namespace donut::math;
 #include "../../shaders/ShaderParameters.h"
 
@@ -317,7 +313,6 @@ void LightingPasses::CreateReSTIRDIPipelines(const std::vector<donut::engine::Sh
     m_brdfRayTracingPass.Init(m_device, *m_shaderFactory, "app/LightingPasses/BrdfRayTracing.hlsl", {}, useRayQuery, RTXDI_SCREEN_SPACE_GROUP_SIZE, m_bindingLayout, nullptr, m_bindlessLayout);
     m_shadeSecondarySurfacesPass.Init(m_device, *m_shaderFactory, "app/LightingPasses/ShadeSecondarySurfaces.hlsl", regirMacros, useRayQuery, RTXDI_SCREEN_SPACE_GROUP_SIZE, m_bindingLayout, nullptr, m_bindlessLayout);
     m_fusedResamplingPass.Init(m_device, *m_shaderFactory, "app/LightingPasses/DI/FusedResampling.hlsl", regirMacros, useRayQuery, RTXDI_SCREEN_SPACE_GROUP_SIZE, m_bindingLayout, nullptr, m_bindlessLayout);
-    m_gradientsPass.Init(m_device, *m_shaderFactory, "app/DenoisingPasses/ComputeGradients.hlsl", {}, useRayQuery, RTXDI_SCREEN_SPACE_GROUP_SIZE, m_bindingLayout, nullptr, m_bindlessLayout);
 }
 
 void LightingPasses::CreateReSTIRGIPipelines(bool useRayQuery)
@@ -339,17 +334,6 @@ void LightingPasses::CreatePipelines(const rtxdi::ReGIRStaticParameters& regirSt
     CreateReSTIRDIPipelines(regirMacros, useRayQuery);
     CreateReSTIRGIPipelines(useRayQuery);
 }
-
-#if WITH_NRD
-static void NrdHitDistanceParamsToFloat4(const nrd::HitDistanceParameters* params, dm::float4& out)
-{
-    assert(params);
-    out.x = params->A;
-    out.y = params->B;
-    out.z = params->C;
-    out.w = params->D;
-}
-#endif
 
 void FillReSTIRDIConstants(ReSTIRDI_Parameters& params, const rtxdi::ReSTIRDIContext& restirDIContext, const RTXDI_LightBufferParameters& lightBufferParameters)
 {
@@ -440,13 +424,6 @@ void LightingPasses::FillResamplingConstants(
     constants.sceneConstants.enableAlphaTestedGeometry = lightingSettings.enableAlphaTestedGeometry;
     constants.sceneConstants.enableTransparentGeometry = lightingSettings.enableTransparentGeometry;
     constants.visualizeRegirCells = lightingSettings.visualizeRegirCells;
-#if WITH_NRD
-    if (lightingSettings.denoiserMode != DENOISER_MODE_OFF)
-    {
-        NrdHitDistanceParamsToFloat4(lightingSettings.reblurDiffHitDistanceParams, constants.reblurDiffHitDistParams);
-        NrdHitDistanceParamsToFloat4(lightingSettings.reblurSpecHitDistanceParams, constants.reblurSpecHitDistParams);
-    }
-#endif
 
     constants.lightBufferParams = isContext.GetLightBufferParameters();
     constants.localLightsRISBufferSegmentParams = isContext.GetLocalLightRISBufferSegmentParams();
@@ -570,12 +547,6 @@ void LightingPasses::RenderDirectLighting(
         ExecuteRayTracingPass(commandList, m_shadeSamplesPass, localSettings.enableRayCounts, "DIShadeSamples", dispatchSize, ProfilerSection::Shading);
     }
     
-    if (localSettings.enableGradients)
-    {
-        nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
-
-        ExecuteRayTracingPass(commandList, m_gradientsPass, localSettings.enableRayCounts, "DIGradients", (dispatchSize + RTXDI_GRAD_FACTOR - 1) / RTXDI_GRAD_FACTOR, ProfilerSection::Gradients);
-    }
 }
 
 void LightingPasses::RenderBrdfRays(

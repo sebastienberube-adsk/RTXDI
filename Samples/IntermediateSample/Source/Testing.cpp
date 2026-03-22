@@ -168,8 +168,6 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
     bool help = false;
     bool useVk = false;
     ibool checkerboard = false;
-    std::string denoiserMode;
-
     options.add_options()
         ("aa-mode", "Anti-aliasing mode: OFF, ACC, TAA", value(ui.aaMode))
         ("alpha-tested", "Alpha-tested materials toggle", value(ui.gbufferSettings.enableAlphaTestedGeometry))
@@ -184,7 +182,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("h,help", "Display this help message", value(help))
         ("height", "Window height", value(deviceParams.backBufferHeight))
         ("indirect-resampling", "ReSTIR GI resampling mode: NONE, TEMPORAL, SPATIAL, TEMPORAL_SPATIAL, FUSED", value(ui.restirGI.resamplingMode))
-        ("noise-mix", "Amount of noise to mix in after denoising", value(ui.noiseMix))
+        ("noise-mix", "Amount of noise to mix in", value(ui.noiseMix))
         ("pixel-jitter", "Pixel jitter toggle", value(ui.enablePixelJitter))
         ("preset", "Rendering settings preset: FAST, MEDIUM, UNBIASED, ULTRA, REFERENCE", value(ui))
         ("rasterize-gbuffer", "G-buffer rasterization toggle", value(ui.rasterizeGBuffer))
@@ -202,12 +200,6 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("width", "Window width", value(deviceParams.backBufferWidth))
     ;
 
-#if WITH_NRD
-    options.add_options()
-        ("denoiser", "Denoiser: OFF, REBLUR, RELAX", value(denoiserMode))
-    ;
-#endif
-
     try
     {
         options.parse(argc, argv);
@@ -222,22 +214,6 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
             exit(0);
         }
         
-        if (!denoiserMode.empty())
-        {
-#if WITH_NRD
-            std::transform(denoiserMode.begin(), denoiserMode.end(), denoiserMode.begin(),
-                [](unsigned char c) { return std::toupper(c); });
-
-            if (denoiserMode == "OFF")
-                ui.enableDenoiser = false;
-            else if (denoiserMode == "REBLUR")
-                ui.denoisingMethod = nrd::Denoiser::REBLUR_DIFFUSE_SPECULAR;
-            else if (denoiserMode == "RELAX")
-                ui.denoisingMethod = nrd::Denoiser::RELAX_DIFFUSE_SPECULAR;
-            else
-                throw cxxopts::exceptions::exception("Unrecognized value passed to the --denoiser argument.");
-#endif
-        }
     }
     catch (const std::exception& e)
     {

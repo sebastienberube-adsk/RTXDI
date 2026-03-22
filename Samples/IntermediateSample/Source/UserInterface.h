@@ -108,7 +108,7 @@ struct UIData
     ibool enableTextures = true;
     uint32_t framesToAccumulate = 0;
     ibool enableToneMapping = true;
-    ibool enablePixelJitter = true;
+    ibool enablePixelJitter = false;
     ibool rasterizeGBuffer = true;
     ibool useRayQuery = true;
     ibool enableBloom = true;
@@ -117,7 +117,7 @@ struct UIData
 
     QualityPreset preset = QualityPreset::Medium;
 
-    AntiAliasingMode aaMode = AntiAliasingMode::TAA;
+    AntiAliasingMode aaMode = AntiAliasingMode::Accumulation;
 
     uint32_t numAccumulatedFrames = 1;
 

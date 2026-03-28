@@ -29,6 +29,7 @@ struct CommandLineArguments
     nvrhi::GraphicsAPI graphicsApi = nvrhi::GraphicsAPI::VULKAN;
     uint32_t saveFrameIndex = 0;
     std::string saveFrameFileName;
+    std::string scenePath;
     bool verbose = false;
     bool benchmark = false;
     bool disableBackgroundOptimization = false;

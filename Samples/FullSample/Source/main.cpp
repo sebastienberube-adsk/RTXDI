@@ -240,15 +240,21 @@ public:
 
     void InitCameraFromScene(const std::shared_ptr<engine::SceneGraph>& sceneGraph)
     {
-        auto* root = sceneGraph->GetRootNode().get();
-        for (size_t i = 0; i < root->GetNumChildren() && !m_cameraInitialized; i++)
+        if (!m_args.scenePath.empty())
         {
-            InitCameraFromNode(root->GetChild(i));
+            auto* root = sceneGraph->GetRootNode().get();
+            for (size_t i = 0; i < root->GetNumChildren() && !m_cameraInitialized; i++)
+            {
+                InitCameraFromNode(root->GetChild(i));
+            }
         }
 
         if (!m_cameraInitialized)
         {
-            m_camera.LookAt(float3(0.f, 1.5f, 3.f), float3(0.f, 1.0f, 0.f));
+            if (m_args.scenePath.empty())
+                m_camera.LookAt(float3(-7.688f, 2.0f, 5.594f), float3(-7.3341f, 2.0f, 6.5366f));
+            else
+                m_camera.LookAt(float3(0.f, 1.5f, 3.f), float3(0.f, 1.0f, 0.f));
         }
         m_camera.SetMoveSpeed(3.f);
     }

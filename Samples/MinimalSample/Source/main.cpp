@@ -141,7 +141,12 @@ public:
             InitCameraFromNode(root->GetChild(i));
 
         if (!m_cameraInitialized)
-            m_camera.LookAt(float3(0.f, 1.5f, 3.f), float3(0.f, 1.0f, 0.f));
+        {
+            if (m_scenePath.empty())
+                m_camera.LookAt(float3(-1.658f, 1.577f, 1.69f), float3(-0.9645f, 1.2672f, 1.0396f));
+            else
+                m_camera.LookAt(float3(0.f, 1.5f, 3.f), float3(0.f, 1.0f, 0.f));
+        }
         m_camera.SetMoveSpeed(3.f);
     }
 

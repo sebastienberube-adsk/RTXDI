@@ -33,14 +33,6 @@
 #ifdef DONUT_WITH_TASKFLOW
 #include <taskflow/taskflow.hpp>
 #endif
-// #region agent log
-#include <fstream>
-#include <cstdio>
-static void debugLog877e1d(const char* hypothesisId, const char* location, const char* message, const char* data = "{}") {
-    FILE* f = fopen("C:\\Dev\\Adsk\\W00\\Fork\\RTXDI\\debug-877e1d.log", "a");
-    if (f) { fprintf(f, "{\"sessionId\":\"877e1d\",\"hypothesisId\":\"%s\",\"location\":\"%s\",\"message\":\"%s\",\"data\":%s,\"timestamp\":%lld}\n", hypothesisId, location, message, data, (long long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()); fclose(f); }
-}
-// #endregion
 
 #include "DebugViz/DebugVizPasses.h"
 #include "RenderPasses/AccumulationPass.h"
@@ -143,10 +135,6 @@ public:
             ? "/Assets/Media/bistro-rtxdi.scene.json"
             : m_args.scenePath;
 
-        // #region agent log
-        { char buf[512]; snprintf(buf, sizeof(buf), "{\"scenePath\":\"%s\",\"argsEmpty\":%s}", scenePath.string().c_str(), m_args.scenePath.empty() ? "true" : "false"); debugLog877e1d("H1", "main.cpp:Init", "Scene path resolved", buf); }
-        // #endregion
-
         m_descriptorTableManager = std::make_shared<engine::DescriptorTableManager>(GetDevice(), m_bindlessLayout);
 
         m_TextureCache = std::make_shared<donut::engine::TextureCache>(GetDevice(), m_rootFs, m_descriptorTableManager);
@@ -229,9 +217,6 @@ public:
     void InitCameraFromScene(const std::shared_ptr<engine::SceneGraph>& sceneGraph)
     {
         auto* root = sceneGraph->GetRootNode().get();
-        // #region agent log
-        { char buf[64]; snprintf(buf, sizeof(buf), "{\"rootChildren\":%zu}", root->GetNumChildren()); debugLog877e1d("H2", "main.cpp:InitCameraFromScene", "Starting camera search", buf); }
-        // #endregion
         for (size_t i = 0; i < root->GetNumChildren() && !m_cameraInitialized; i++)
         {
             InitCameraFromNode(root->GetChild(i));
@@ -239,9 +224,6 @@ public:
 
         if (!m_cameraInitialized)
         {
-            // #region agent log
-            debugLog877e1d("H2", "main.cpp:InitCameraFromScene", "No camera found, using fallback");
-            // #endregion
             m_camera.LookAt(float3(0.f, 1.5f, 3.f), float3(0.f, 1.0f, 0.f));
         }
         m_camera.SetMoveSpeed(3.f);
@@ -252,19 +234,12 @@ public:
         if (m_cameraInitialized || !node)
             return;
 
-        // #region agent log
-        { char buf[256]; snprintf(buf, sizeof(buf), "{\"nodeName\":\"%s\",\"hasLeaf\":%s,\"numChildren\":%zu}", node->GetName().c_str(), node->GetLeaf() ? "true" : "false", node->GetNumChildren()); debugLog877e1d("H2", "main.cpp:InitCameraFromNode", "Visiting node", buf); }
-        // #endregion
-
         auto camera = std::dynamic_pointer_cast<engine::PerspectiveCamera>(node->GetLeaf());
         if (camera && node->GetName() != "Benchmark")
         {
             dm::affine3 viewToWorld = camera->GetViewToWorldMatrix();
             float3 pos = float3(viewToWorld.m_translation);
             float3 forward = float3(-viewToWorld.m_linear.row2);
-            // #region agent log
-            { char buf[256]; snprintf(buf, sizeof(buf), "{\"cameraName\":\"%s\",\"pos\":[%f,%f,%f],\"forward\":[%f,%f,%f]}", node->GetName().c_str(), pos.x, pos.y, pos.z, forward.x, forward.y, forward.z); debugLog877e1d("H2", "main.cpp:InitCameraFromNode", "Found camera, initializing", buf); }
-            // #endregion
             m_camera.LookAt(pos, pos + forward);
             m_cameraInitialized = true;
             return;
@@ -283,10 +258,6 @@ public:
         m_scene->FinishedLoading(GetFrameIndex());
 
         const auto& sceneGraph = m_scene->GetSceneGraph();
-
-        // #region agent log
-        debugLog877e1d("H1", "main.cpp:SceneLoaded", "Scene loaded successfully");
-        // #endregion
 
         InitCameraFromScene(sceneGraph);
 

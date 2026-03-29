@@ -24,12 +24,26 @@ float RAB_EvaluateLocalLightSourcePdf(uint lightIndex)
 
 float3 RAB_GetReflectedRadianceForSurface(float3 incomingRadianceLocation, float3 incomingRadiance, RAB_Surface surface)
 {
-    return float3(0.0, 0.0, 0.0);
+    float3 L = normalize(incomingRadianceLocation - surface.worldPos);
+    float3 N = surface.normal;
+    float3 V = surface.viewDir;
+
+    if (dot(L, surface.geoNormal) <= 0)
+        return 0;
+
+    float d = Lambert(N, -L);
+    float3 s;
+    if (surface.material.roughness == 0)
+        s = 0;
+    else
+        s = GGX_times_NdotL(V, L, N, max(surface.material.roughness, kMinRoughness), surface.material.specularF0);
+
+    return incomingRadiance * (d * surface.material.diffuseAlbedo + s);
 }
 
 float RAB_GetReflectedLuminanceForSurface(float3 incomingRadianceLocation, float3 incomingRadiance, RAB_Surface surface)
 {
-    return 0.0;
+    return RTXDI_Luminance(RAB_GetReflectedRadianceForSurface(incomingRadianceLocation, incomingRadiance, surface));
 }
 
 // Evaluate the surface BRDF and compute the weighted reflected radiance for the given light sample
@@ -68,7 +82,8 @@ float RAB_GetLightSampleTargetPdfForSurface(RAB_LightSample lightSample, RAB_Sur
 
 float RAB_GetGISampleTargetPdfForSurface(float3 samplePosition, float3 sampleRadiance, RAB_Surface surface)
 {
-    return 0.0;
+    float3 reflectedRadiance = RAB_GetReflectedRadianceForSurface(samplePosition, sampleRadiance, surface);
+    return RTXDI_Luminance(reflectedRadiance);
 }
 
 void RAB_GetLightDirDistance(RAB_Surface surface, RAB_LightSample lightSample,

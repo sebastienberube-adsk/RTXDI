@@ -145,6 +145,8 @@ void LightingPasses::CreatePipelines()
     m_temporalResamplingShader = m_shaderFactory->CreateShader("app/DITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_spatialResamplingShader = m_shaderFactory->CreateShader("app/DISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_shadeSamplesShader = m_shaderFactory->CreateShader("app/DIShadeSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_brdfRayTracingShader = m_shaderFactory->CreateShader("app/BrdfRayTracing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_shadeSecondarySurfacesShader = m_shaderFactory->CreateShader("app/ShadeSecondarySurfaces.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_compositingShader = m_shaderFactory->CreateShader("app/Compositing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     auto createPipeline = [this](nvrhi::IShader* shader) -> nvrhi::ComputePipelineHandle {
@@ -159,6 +161,8 @@ void LightingPasses::CreatePipelines()
     m_temporalResamplingPipeline = createPipeline(m_temporalResamplingShader);
     m_spatialResamplingPipeline = createPipeline(m_spatialResamplingShader);
     m_shadeSamplesPipeline = createPipeline(m_shadeSamplesShader);
+    m_brdfRayTracingPipeline = createPipeline(m_brdfRayTracingShader);
+    m_shadeSecondarySurfacesPipeline = createPipeline(m_shadeSecondarySurfacesShader);
     m_compositingPipeline = createPipeline(m_compositingShader);
 }
 
@@ -277,9 +281,28 @@ void LightingPasses::Render(
     commandList->dispatch(dispatchWidth, dispatchHeight);
     commandList->endMarker();
 
+    if (constants.enableBrdfIndirect)
+    {
+        commandList->setResourceStatesForBindingSet(m_bindingSet);
+
+        commandList->beginMarker("BrdfRayTracing");
+        state.pipeline = m_brdfRayTracingPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+
+        commandList->setResourceStatesForBindingSet(m_bindingSet);
+
+        commandList->beginMarker("ShadeSecondarySurfaces");
+        state.pipeline = m_shadeSecondarySurfacesPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+    }
+
     commandList->setResourceStatesForBindingSet(m_bindingSet);
 
-    // Pass 6: Compositing
+    // Compositing
     commandList->beginMarker("Compositing");
     state.pipeline = m_compositingPipeline;
     commandList->setComputeState(state);

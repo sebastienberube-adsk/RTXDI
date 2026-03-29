@@ -82,6 +82,8 @@ private:
     nvrhi::ShaderHandle m_temporalResamplingShader;
     nvrhi::ShaderHandle m_spatialResamplingShader;
     nvrhi::ShaderHandle m_shadeSamplesShader;
+    nvrhi::ShaderHandle m_brdfRayTracingShader;
+    nvrhi::ShaderHandle m_shadeSecondarySurfacesShader;
     nvrhi::ShaderHandle m_compositingShader;
 
     nvrhi::ComputePipelineHandle m_gbufferPipeline;
@@ -89,6 +91,8 @@ private:
     nvrhi::ComputePipelineHandle m_temporalResamplingPipeline;
     nvrhi::ComputePipelineHandle m_spatialResamplingPipeline;
     nvrhi::ComputePipelineHandle m_shadeSamplesPipeline;
+    nvrhi::ComputePipelineHandle m_brdfRayTracingPipeline;
+    nvrhi::ComputePipelineHandle m_shadeSecondarySurfacesPipeline;
     nvrhi::ComputePipelineHandle m_compositingPipeline;
 
     nvrhi::BindingLayoutHandle m_bindingLayout;

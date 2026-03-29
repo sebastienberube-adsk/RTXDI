@@ -29,6 +29,8 @@ public:
     
     nvrhi::TextureHandle MotionVectors;
     nvrhi::TextureHandle Emissive;
+    nvrhi::TextureHandle DiffuseLighting;
+    nvrhi::TextureHandle SpecularLighting;
     nvrhi::TextureHandle HdrColor;
 
     dm::int2 Size;

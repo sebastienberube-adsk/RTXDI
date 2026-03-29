@@ -71,4 +71,17 @@ float3 viewDepthToWorldPos(
     return mul(viewPos, view.matViewToWorld).xyz;
 }
 
+float3 convertMotionVectorToPixelSpace(
+    PlanarViewConstants view,
+    PlanarViewConstants viewPrev,
+    int2 pixelPosition,
+    float3 motionVector)
+{
+    float2 currentPixelCenter = float2(pixelPosition.xy) + 0.5;
+    float2 previousPosition = currentPixelCenter + motionVector.xy;
+    previousPosition *= viewPrev.viewportSize * view.viewportSizeInv;
+    motionVector.xy = previousPosition - currentPixelCenter;
+    return motionVector;
+}
+
 #endif // G_BUFFER_HELPERS_HLSLI

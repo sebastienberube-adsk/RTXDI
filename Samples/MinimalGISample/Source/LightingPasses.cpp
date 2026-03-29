@@ -147,6 +147,8 @@ void LightingPasses::CreatePipelines()
     m_shadeSamplesShader = m_shaderFactory->CreateShader("app/DIShadeSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_brdfRayTracingShader = m_shaderFactory->CreateShader("app/BrdfRayTracing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_shadeSecondarySurfacesShader = m_shaderFactory->CreateShader("app/ShadeSecondarySurfaces.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_giTemporalResamplingShader = m_shaderFactory->CreateShader("app/GI/TemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_giSpatialResamplingShader = m_shaderFactory->CreateShader("app/GI/SpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_compositingShader = m_shaderFactory->CreateShader("app/Compositing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     auto createPipeline = [this](nvrhi::IShader* shader) -> nvrhi::ComputePipelineHandle {
@@ -163,6 +165,8 @@ void LightingPasses::CreatePipelines()
     m_shadeSamplesPipeline = createPipeline(m_shadeSamplesShader);
     m_brdfRayTracingPipeline = createPipeline(m_brdfRayTracingShader);
     m_shadeSecondarySurfacesPipeline = createPipeline(m_shadeSecondarySurfacesShader);
+    m_giTemporalResamplingPipeline = createPipeline(m_giTemporalResamplingShader);
+    m_giSpatialResamplingPipeline = createPipeline(m_giSpatialResamplingShader);
     m_compositingPipeline = createPipeline(m_compositingShader);
 }
 
@@ -295,6 +299,22 @@ void LightingPasses::Render(
 
         commandList->beginMarker("ShadeSecondarySurfaces");
         state.pipeline = m_shadeSecondarySurfacesPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+
+        commandList->setResourceStatesForBindingSet(m_bindingSet);
+
+        commandList->beginMarker("GITemporalResampling");
+        state.pipeline = m_giTemporalResamplingPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+
+        commandList->setResourceStatesForBindingSet(m_bindingSet);
+
+        commandList->beginMarker("GISpatialResampling");
+        state.pipeline = m_giSpatialResamplingPipeline;
         commandList->setComputeState(state);
         commandList->dispatch(dispatchWidth, dispatchHeight);
         commandList->endMarker();

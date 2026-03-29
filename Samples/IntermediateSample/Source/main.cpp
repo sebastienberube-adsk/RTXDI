@@ -288,7 +288,7 @@ public:
         sceneGraph->AttachLeafNode(sceneGraph->GetRootNode(), m_environmentLight);
         m_environmentLight->SetName("Environment");
         m_ui.environmentMapDirty = 2;
-        m_ui.environmentMapIndex = 0;
+        m_ui.environmentMapIndex = -1; //-1: None
         
         m_rasterizedGBufferPass->CreateBindingSet();
 

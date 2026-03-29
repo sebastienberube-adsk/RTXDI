@@ -111,23 +111,23 @@ struct UIData
     ibool enablePixelJitter = false;
     ibool rasterizeGBuffer = true;
     ibool useRayQuery = true;
-    ibool enableBloom = true;
+    ibool enableBloom = false;
     float exposureBias = -1.0f;
     float verticalFov = 60.f;
 
     QualityPreset preset = QualityPreset::Medium;
 
-    AntiAliasingMode aaMode = AntiAliasingMode::Accumulation;
+    AntiAliasingMode aaMode = AntiAliasingMode::None;
 
     uint32_t numAccumulatedFrames = 1;
 
     DirectLightingMode directLightingMode = DirectLightingMode::ReStir;
-    IndirectLightingMode indirectLightingMode = IndirectLightingMode::ReStirGI;
+    IndirectLightingMode indirectLightingMode = IndirectLightingMode::None;
     ibool enableAnimations = true;
     float animationSpeed = 1.f;
     int environmentMapDirty = 0; // 1 -> needs to be rendered; 2 -> passes/textures need to be created
     int environmentMapIndex = -1;
-    bool environmentMapImportanceSampling = true;
+    bool environmentMapImportanceSampling = false;
     float environmentIntensityBias = 0.f;
     float environmentRotation = 0.f;
     

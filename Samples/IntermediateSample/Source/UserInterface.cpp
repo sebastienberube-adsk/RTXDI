@@ -98,11 +98,11 @@ void UIData::ApplyPreset()
     case QualityPreset::Medium:
         enableCheckerboardSampling = false;
         restirDI.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial;
-        restirDI.initialSamplingParams.localLightSamplingMode = ReSTIRDI_LocalLightSamplingMode::ReGIR_RIS;
+        restirDI.initialSamplingParams.localLightSamplingMode = ReSTIRDI_LocalLightSamplingMode::Uniform;
         restirDI.numLocalLightUniformSamples = 8;
         restirDI.numLocalLightPowerRISSamples = 8;
         restirDI.numLocalLightReGIRRISSamples = 8;
-        restirDI.initialSamplingParams.numPrimaryLocalLightSamples = restirDI.numLocalLightReGIRRISSamples;
+        restirDI.initialSamplingParams.numPrimaryLocalLightSamples = restirDI.numLocalLightUniformSamples;
         restirDI.initialSamplingParams.numPrimaryBrdfSamples = 1;
         restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples = 2;
         restirDI.temporalResamplingParams.discardInvisibleSamples = true;

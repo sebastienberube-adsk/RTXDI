@@ -68,6 +68,14 @@ RenderTargets::RenderTargets(nvrhi::IDevice* device, int2 size)
     Emissive = device->createTexture(desc);
 
     desc.format = nvrhi::Format::RGBA16_FLOAT;
+    desc.debugName = "DiffuseLighting";
+    DiffuseLighting = device->createTexture(desc);
+
+    desc.format = nvrhi::Format::RGBA16_FLOAT;
+    desc.debugName = "SpecularLighting";
+    SpecularLighting = device->createTexture(desc);
+
+    desc.format = nvrhi::Format::RGBA16_FLOAT;
     desc.debugName = "HdrColor";
     HdrColor = device->createTexture(desc);
 }

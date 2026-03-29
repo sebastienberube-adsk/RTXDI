@@ -23,7 +23,7 @@ StructuredBuffer<uint> t_GeometryInstanceToLight : register(t22);
 
 // Screen-sized UAVs
 RWStructuredBuffer<RTXDI_PackedDIReservoir> u_LightReservoirs : register(u0);
-RWTexture2D<float4> u_ShadingOutput : register(u1);
+RWTexture2D<float4> u_DiffuseLighting : register(u1);
 RWTexture2D<float> u_GBufferDepth : register(u2);
 RWTexture2D<uint> u_GBufferNormals : register(u3);
 RWTexture2D<uint> u_GBufferGeoNormals : register(u4);
@@ -31,6 +31,8 @@ RWTexture2D<uint> u_GBufferDiffuseAlbedo : register(u5);
 RWTexture2D<uint> u_GBufferSpecularRough : register(u6);
 RWTexture2D<float4> u_MotionVectors : register(u7);
 RWTexture2D<float4> u_Emissive : register(u8);
+RWTexture2D<float4> u_SpecularLighting : register(u9);
+RWTexture2D<float4> u_HdrColor : register(u10);
 
 // Other
 ConstantBuffer<ResamplingConstants> g_Const : register(b0);

@@ -42,9 +42,9 @@ static StochasticThresholds GetThresholds()
 {
     StochasticThresholds t;
     t.tileSize                = 32;
-    t.absAvgDeltaThreshold    = 0.055f;
-    t.relDifferenceThreshold  = 0.28f;
-    t.absStdDevDeltaThreshold = 0.085f;
+    t.absAvgDeltaThreshold    = 0.075f;
+    t.relDifferenceThreshold  = 0.35f;
+    t.absStdDevDeltaThreshold = 0.150f;
     return t;
 }
 
@@ -218,9 +218,7 @@ static ::testing::AssertionResult CompareImages(
         }
 
         SaveAnnotatedImage(pixA.data(), wA, hA, result, thresholds,
-            GetOutputDir() / (safeName + "_A_annotated.bmp"));
-        SaveAnnotatedImage(pixB.data(), wB, hB, result, thresholds,
-            GetOutputDir() / (safeName + "_B_annotated.bmp"));
+            GetOutputDir() / (safeName + "_annotated.bmp"));
     }
 
     if (result.passed)

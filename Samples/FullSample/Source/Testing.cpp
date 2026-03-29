@@ -16,10 +16,7 @@
 #include <donut/core/log.h>
 
 #include <cxxopts.hpp>
-#include <stb_image.h>
-#include <stb_image_write.h>
 #include <filesystem>
-#include <vector>
 
 using namespace donut;
 namespace fs = std::filesystem;
@@ -317,62 +314,3 @@ void ApplicationLogCallback(log::Severity severity, const char* message)
         abort();
 }
 
-bool SaveTexture(nvrhi::IDevice* device, nvrhi::ITexture* texture, const char* writeFileName)
-{
-    nvrhi::TextureDesc desc = texture->getDesc();
-    nvrhi::FramebufferHandle tempFramebuffer;
-
-    nvrhi::CommandListHandle commandList = device->createCommandList();
-    commandList->open();
-    
-    nvrhi::StagingTextureHandle stagingTexture = device->createStagingTexture(desc, nvrhi::CpuAccessMode::Read);
-    commandList->copyTexture(stagingTexture, nvrhi::TextureSlice(), texture, nvrhi::TextureSlice());
-    
-    commandList->close();
-    device->executeCommandList(commandList);
-    device->waitForIdle();
-
-    size_t rowPitch = 0;
-    void* pData = device->mapStagingTexture(stagingTexture, nvrhi::TextureSlice(), nvrhi::CpuAccessMode::Read, &rowPitch);
-
-    if (!pData)
-    {
-        log::error("Couldn't map the readback texture.");
-        return false;
-    }
-
-    std::vector<uint8_t> packedPixels(desc.width * desc.height * 4);
-    for (uint32_t row = 0; row < desc.height; row++)
-    {
-        memcpy(packedPixels.data() + row * desc.width * 4,
-            static_cast<char*>(pData) + row * rowPitch,
-            desc.width * 4);
-    }
-
-    device->unmapStagingTexture(stagingTexture);
-
-    if (desc.format == nvrhi::Format::BGRA8_UNORM || desc.format == nvrhi::Format::SBGRA8_UNORM)
-    {
-        for (size_t i = 0; i < packedPixels.size(); i += 4)
-            std::swap(packedPixels[i], packedPixels[i + 2]);
-    }
-
-    bool success = true;
-    if (writeFileName && *writeFileName)
-    {
-        fs::path parentFolder = fs::path(writeFileName).parent_path();
-        if (!parentFolder.empty() && !fs::exists(parentFolder))
-        {
-            log::info("Creating folder '%s'", parentFolder.generic_string().c_str());
-            fs::create_directories(parentFolder);
-        }
-
-        success = stbi_write_bmp(writeFileName, desc.width, desc.height, 4, packedPixels.data()) != 0;
-        if (success)
-            log::info("Saved the screenshot into '%s'", writeFileName);
-        else
-            log::error("Failed to save the screenshot into '%s'", writeFileName);
-    }
-
-    return success;
-}

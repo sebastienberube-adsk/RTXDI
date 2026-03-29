@@ -146,23 +146,7 @@ static void SaveAnnotatedImage(const uint8_t* pixels, size_t width, size_t heigh
         if (tile.passed)
             continue;
 
-        // Compute worst metric/threshold ratio across failed channels.
-        float worstRatio = 1.0f;
-        for (int c = 0; c < 3; ++c)
-        {
-            if (!tile.channels[c].passed)
-            {
-                auto ratio = [](float value, float thresh) {
-                    return thresh > 0.0f ? value / thresh : (value > 0.0f ? 1e6f : 1.0f);
-                };
-                worstRatio = std::max(worstRatio, ratio(tile.channels[c].absAvgDelta,
-                                                        thresholds.absAvgDeltaThreshold));
-                worstRatio = std::max(worstRatio, ratio(tile.channels[c].relDelta,
-                                                        thresholds.relDifferenceThreshold));
-                worstRatio = std::max(worstRatio, ratio(tile.channels[c].absStdDevDelta,
-                                                        thresholds.absStdDevDeltaThreshold));
-            }
-        }
+        float worstRatio = GetFailureDegree(tile, thresholds);
 
         // Lerp: 1x -> yellow (255,255,0), 2x+ -> red (255,0,0).
         float t = std::clamp((worstRatio - 1.0f), 0.0f, 1.0f);
@@ -219,12 +203,13 @@ static ::testing::AssertionResult CompareImages(
         return ::testing::AssertionFailure()
             << "Size mismatch: " << wA << "x" << hA << " vs " << wB << "x" << hB;
 
-    auto result = CompareStochastic(pixA.data(), pixB.data(), wA, hA, GetThresholds());
-    std::cout << "  [" << label << "] " << result.summary;
+    auto thresholds = GetThresholds();
+    auto result = CompareStochastic(pixA.data(), pixB.data(), wA, hA, thresholds);
+    std::string summary = FormatStochasticSummary(result, thresholds);
+    std::cout << "  [" << label << "] " << summary;
 
     if (!result.passed && result.failingTileCount > 0)
     {
-        // Sanitize label for use as a filename.
         std::string safeName = label;
         for (char& c : safeName)
         {
@@ -232,7 +217,6 @@ static ::testing::AssertionResult CompareImages(
                 c = '_';
         }
 
-        auto thresholds = GetThresholds();
         SaveAnnotatedImage(pixA.data(), wA, hA, result, thresholds,
             GetOutputDir() / (safeName + "_A_annotated.bmp"));
         SaveAnnotatedImage(pixB.data(), wB, hB, result, thresholds,
@@ -241,7 +225,7 @@ static ::testing::AssertionResult CompareImages(
 
     if (result.passed)
         return ::testing::AssertionSuccess();
-    return ::testing::AssertionFailure() << result.summary;
+    return ::testing::AssertionFailure() << summary;
 }
 
 // ---------------------------------------------------------------------------

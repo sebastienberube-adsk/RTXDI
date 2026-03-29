@@ -11,6 +11,7 @@
 #pragma once
 
 #include <nvrhi/nvrhi.h>
+#include <SaveTexture.h>
 
 struct UIData;
 
@@ -39,4 +40,3 @@ struct CommandLineArguments
 
 void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParameters& deviceParams, UIData& ui, CommandLineArguments& args);
 void ApplicationLogCallback(donut::log::Severity severity, const char* message);
-bool SaveTexture(nvrhi::IDevice* device, nvrhi::ITexture* texture, const char* writeFileName);

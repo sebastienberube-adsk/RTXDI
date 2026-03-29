@@ -16,6 +16,7 @@
 #include <cstdint>
 
 #include <ImageComparison.h>
+#include <SaveTexture.h>
 
 namespace donut::app {
     struct DeviceCreationParameters;
@@ -38,5 +39,3 @@ struct CommandLineArguments
 void ProcessCommandLine(int argc, char** argv,
     donut::app::DeviceCreationParameters& deviceParams,
     CommandLineArguments& args);
-
-bool SaveTexture(nvrhi::IDevice* device, nvrhi::ITexture* texture, const char* writeFileName);

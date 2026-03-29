@@ -15,7 +15,7 @@
 #include <cstdint>
 
 // ---------------------------------------------------------------------------
-// Tile-based stochastic image comparison (replicated from Aurora test infra).
+// Tile-based stochastic image comparison
 // ---------------------------------------------------------------------------
 
 struct StochasticThresholds
@@ -54,17 +54,32 @@ struct StochasticResult
     float maxAbsStdDevDelta[3] = { 0.0f, 0.0f, 0.0f };
     uint32_t tilesX = 0;
     uint32_t tilesY = 0;
+    uint32_t imageWidth = 0;
+    uint32_t imageHeight = 0;
     std::vector<TileResult> tiles;
     uint32_t failingTileCount = 0;
     std::string summary;
 };
 
+// Pure computation: compares two RGBA8 images and returns per-tile statistics.
+// Does NOT populate result.summary -- call FormatStochasticSummary for that.
 StochasticResult CompareStochastic(
     const uint8_t* pixelsA,
     const uint8_t* pixelsB,
     size_t width,
     size_t height,
     const StochasticThresholds& thresholds = StochasticThresholds());
+
+// Returns the worst metric/threshold ratio across all channels for a tile.
+// A value <= 1.0 means the tile passes; values > 1.0 indicate how far over
+// the threshold it is (e.g. 2.0 = twice the threshold).
+float GetFailureDegree(const TileResult& tile, const StochasticThresholds& thresholds);
+
+// Formats a human-readable summary of the comparison result, including
+// worst-tile lines sorted by failure degree.
+std::string FormatStochasticSummary(
+    const StochasticResult& result,
+    const StochasticThresholds& thresholds);
 
 // LoadImageRGBA8 uses stb_image; the implementation is in ImageIO.cpp
 // which must be compiled alongside a STB_IMAGE_IMPLEMENTATION provider.

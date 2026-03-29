@@ -40,7 +40,9 @@ set(sources
 	"Testing.cpp"
 	"Testing.h"
 	"UserInterface.cpp"
-	"UserInterface.h")
+	"UserInterface.h"
+	"${CMAKE_CURRENT_SOURCE_DIR}/../../Common/SaveTexture.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/../../Common/SaveTexture.h")
 
 # Organize MSVS filters (the little folders in the solution explorer) to match the folder structure
 foreach(source IN LISTS sources)
@@ -61,6 +63,7 @@ else()
 	add_executable(${project} WIN32 ${sources})
 endif()
 
+target_include_directories(${project} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../Common")
 target_link_libraries(${project} donut_core donut_engine donut_app donut_render Rtxdi cxxopts)
 add_dependencies(${project} IntermediateSampleShaders)
 set_target_properties(${project} PROPERTIES FOLDER ${folder})

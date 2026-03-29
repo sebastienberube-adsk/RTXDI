@@ -14,11 +14,41 @@
 #include <cmath>
 #include <cstring>
 #include <iomanip>
-#include <iostream>
 #include <sstream>
 
 // ---------------------------------------------------------------------------
-// Tile-based stochastic image comparison
+// Helpers
+// ---------------------------------------------------------------------------
+
+static float SafeRatio(float value, float thresh)
+{
+    return thresh > 0.0f ? value / thresh : (value > 0.0f ? 1e6f : 0.0f);
+}
+
+// ---------------------------------------------------------------------------
+// GetFailureDegree
+// ---------------------------------------------------------------------------
+
+float GetFailureDegree(const TileResult& tile, const StochasticThresholds& thresholds)
+{
+    float worst = 0.0f;
+    for (int c = 0; c < 3; ++c)
+    {
+        if (!tile.channels[c].passed)
+        {
+            worst = std::max(worst, SafeRatio(tile.channels[c].absAvgDelta,
+                                              thresholds.absAvgDeltaThreshold));
+            worst = std::max(worst, SafeRatio(tile.channels[c].relDelta,
+                                              thresholds.relDifferenceThreshold));
+            worst = std::max(worst, SafeRatio(tile.channels[c].absStdDevDelta,
+                                              thresholds.absStdDevDeltaThreshold));
+        }
+    }
+    return worst;
+}
+
+// ---------------------------------------------------------------------------
+// CompareStochastic -- pure computation, no summary generation
 // ---------------------------------------------------------------------------
 
 StochasticResult CompareStochastic(
@@ -32,6 +62,8 @@ StochasticResult CompareStochastic(
     const uint32_t ts = thresholds.tileSize;
     result.tilesX = static_cast<uint32_t>((width + ts - 1) / ts);
     result.tilesY = static_cast<uint32_t>((height + ts - 1) / ts);
+    result.imageWidth = static_cast<uint32_t>(width);
+    result.imageHeight = static_cast<uint32_t>(height);
     result.tiles.resize(static_cast<size_t>(result.tilesX) * result.tilesY);
     result.passed = true;
     result.failingTileCount = 0;
@@ -126,7 +158,19 @@ StochasticResult CompareStochastic(
         }
     }
 
-    // Find worst value across all channels for each metric, and the tile it came from.
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// FormatStochasticSummary
+// ---------------------------------------------------------------------------
+
+std::string FormatStochasticSummary(
+    const StochasticResult& result,
+    const StochasticThresholds& thresholds)
+{
+    const bool stdDevEnabled = (thresholds.absStdDevDeltaThreshold > 0.0f);
+
     struct { float value = 0.0f; uint32_t tileX = 0, tileY = 0; } worstAbsAvg, worstRel, worstSD;
     for (const auto& t : result.tiles)
     {
@@ -141,15 +185,11 @@ StochasticResult CompareStochastic(
         }
     }
 
-    auto ratio = [](float value, float thresh) -> float {
-        return thresh > 0.0f ? value / thresh : (value > 0.0f ? 1e6f : 0.0f);
-    };
-
     std::stringstream ss;
     ss << std::defaultfloat << std::setprecision(6);
     ss << "Stochastic comparison: " << result.tilesX << "x" << result.tilesY
        << " tiles (" << thresholds.tileSize << "px), "
-       << width << "x" << height << " image\n";
+       << result.imageWidth << "x" << result.imageHeight << " image\n";
     ss << "  Thresholds: absAvgDelta <= " << thresholds.absAvgDeltaThreshold
        << " OR relDiff <= " << (thresholds.relDifferenceThreshold * 100.0f) << "%";
     if (stdDevEnabled)
@@ -159,18 +199,18 @@ StochasticResult CompareStochastic(
     ss << std::fixed << std::setprecision(3);
     ss << "     Max absolute avg delta   "
        << std::setw(8) << worstAbsAvg.value
-       << " [" << std::setprecision(2) << ratio(worstAbsAvg.value, thresholds.absAvgDeltaThreshold)
+       << " [" << std::setprecision(2) << SafeRatio(worstAbsAvg.value, thresholds.absAvgDeltaThreshold)
        << "x threshold=" << std::setprecision(3) << thresholds.absAvgDeltaThreshold
        << ", tile(" << worstAbsAvg.tileX << "," << worstAbsAvg.tileY << ")]\n";
     ss << "     Max relative difference  " << std::setprecision(2)
        << std::setw(7) << (worstRel.value * 100.0f) << "%"
-       << " [" << ratio(worstRel.value, thresholds.relDifferenceThreshold)
+       << " [" << SafeRatio(worstRel.value, thresholds.relDifferenceThreshold)
        << "x threshold=" << (thresholds.relDifferenceThreshold * 100.0f) << "%"
        << ", tile(" << worstRel.tileX << "," << worstRel.tileY << ")]\n";
     ss << std::setprecision(3);
     ss << "     Max abs stddev delta     "
        << std::setw(8) << worstSD.value
-       << " [" << std::setprecision(2) << ratio(worstSD.value, thresholds.absStdDevDeltaThreshold)
+       << " [" << std::setprecision(2) << SafeRatio(worstSD.value, thresholds.absStdDevDeltaThreshold)
        << "x threshold=" << std::setprecision(3) << thresholds.absStdDevDeltaThreshold
        << ", tile(" << worstSD.tileX << "," << worstSD.tileY << ")]\n";
 
@@ -188,31 +228,14 @@ StochasticResult CompareStochastic(
                 failed.push_back(&t);
         }
         std::sort(failed.begin(), failed.end(),
-            [&thresholds, &ratio](const TileResult* a, const TileResult* b) {
-            auto severity = [&](const TileResult* t) {
-                float worst = 0.0f;
-                for (int c = 0; c < 3; ++c)
-                {
-                    if (!t->channels[c].passed)
-                    {
-                        worst = std::max(worst, ratio(t->channels[c].absAvgDelta,
-                                                      thresholds.absAvgDeltaThreshold));
-                        worst = std::max(worst, ratio(t->channels[c].relDelta,
-                                                      thresholds.relDifferenceThreshold));
-                        worst = std::max(worst, ratio(t->channels[c].absStdDevDelta,
-                                                      thresholds.absStdDevDeltaThreshold));
-                    }
-                }
-                return worst;
-            };
-            return severity(a) > severity(b);
+            [&thresholds](const TileResult* a, const TileResult* b) {
+            return GetFailureDegree(*a, thresholds) > GetFailureDegree(*b, thresholds);
         });
 
         ss << std::setprecision(6) << std::defaultfloat;
         int shown = 0;
         for (const auto* t : failed)
         {
-            // Use worst value across R/G/B for each metric.
             float abs = 0, rel = 0, dSD = 0, avgA = 0, avgB = 0, sdA = 0, sdB = 0;
             for (int c = 0; c < 3; ++c)
             {
@@ -247,6 +270,5 @@ StochasticResult CompareStochastic(
         }
     }
 
-    result.summary = ss.str();
-    return result;
+    return ss.str();
 }

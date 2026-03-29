@@ -25,6 +25,8 @@
 #include <donut/core/vfs/VFS.h>
 #include <donut/core/math/math.h>
 #include <nvrhi/utils.h>
+#include <GLFW/glfw3.h>
+#include <cstring>
 
 #include "RenderTargets.h"
 #include "PrepareLightsPass.h"
@@ -32,6 +34,7 @@
 #include "RtxdiResources.h"
 #include "SampleScene.h"
 #include "UserInterface.h"
+#include "Testing.h"
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -46,13 +49,16 @@ using namespace donut;
 using namespace donut::math;
 using namespace std::chrono;
 
+static int g_ExitCode = 0;
+
 class SceneRenderer : public app::ApplicationBase
 {
 public:
-    SceneRenderer(app::DeviceManager* deviceManager, UIData& ui)
+    SceneRenderer(app::DeviceManager* deviceManager, UIData& ui, const CommandLineArguments& args)
         : ApplicationBase(deviceManager)
         , m_bindingCache(deviceManager->GetDevice())
         , m_ui(ui)
+        , m_args(args)
     { 
     }
 
@@ -203,7 +209,10 @@ public:
     {
         if (m_ui.isLoading)
             return;
-        
+
+        if (!m_args.saveFrameFileName.empty() || !m_args.compareBaselinePath.empty())
+            fElapsedTimeSeconds = 1.f / 60.f;
+
         m_camera.Animate(fElapsedTimeSeconds);
     }
 
@@ -301,25 +310,17 @@ public:
     {   
         const auto& fbinfo = framebuffer->getFramebufferInfo();
 
-        // Setup the viewports and transforms
         SetupView(fbinfo, GetFrameIndex());
-
-        // Make sure that the passes and buffers are created and fit the current render size
         SetupRenderPasses(fbinfo);
         
         m_commandList->open();
 
-        // Compute transforms, update the scene representation on the GPU in case something's animated
         m_scene->Refresh(m_commandList, GetFrameIndex());
 
-        // Write the neighbor offset buffer data (only happens once)
         m_rtxdiResources->InitializeNeighborOffsets(m_commandList, m_restirDIContext->GetStaticParameters().NeighborOffsetCount);
         
-        // The light indexing members of frameParameters are written by PrepareLightsPass below
         m_restirDIContext->SetFrameIndex(GetFrameIndex());
 
-        // When the lights are static, there is no need to update them on every frame,
-        // but it's simpler to do so.
         RTXDI_LightBufferParameters lightBufferParams = m_prepareLightsPass->Process(m_commandList);
 
         m_lightingPasses->Render(m_commandList,
@@ -328,16 +329,99 @@ public:
             m_ui.lightingSettings,
             lightBufferParams);
 
-        // Copy the render pass output to the swap chain
         m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->HdrColor, &m_bindingCache);
         
         m_commandList->close();
         GetDevice()->executeCommandList(m_commandList);
 
+        bool wantsSave = !m_args.saveFrameFileName.empty();
+        bool wantsCompare = !m_args.compareBaselinePath.empty();
+
+        if ((wantsSave || wantsCompare) && m_renderFrameIndex == m_args.saveFrameIndex)
+        {
+            if (wantsSave)
+            {
+                bool success = SaveTexture(GetDevice(), m_renderTargets->HdrColor, m_args.saveFrameFileName.c_str());
+                g_ExitCode = success ? 0 : 1;
+            }
+
+            if (wantsCompare)
+            {
+                // Readback the current frame.
+                nvrhi::TextureDesc desc = m_renderTargets->HdrColor->getDesc();
+                nvrhi::CommandListHandle readbackCmdList = GetDevice()->createCommandList();
+                readbackCmdList->open();
+                nvrhi::StagingTextureHandle staging =
+                    GetDevice()->createStagingTexture(desc, nvrhi::CpuAccessMode::Read);
+                readbackCmdList->copyTexture(staging, nvrhi::TextureSlice(), m_renderTargets->HdrColor, nvrhi::TextureSlice());
+                readbackCmdList->close();
+                GetDevice()->executeCommandList(readbackCmdList);
+                GetDevice()->waitForIdle();
+
+                size_t rowPitch = 0;
+                void* pData = GetDevice()->mapStagingTexture(staging, nvrhi::TextureSlice(), nvrhi::CpuAccessMode::Read, &rowPitch);
+                std::vector<uint8_t> rendered(desc.width * desc.height * 4);
+                if (pData)
+                {
+                    for (uint32_t row = 0; row < desc.height; row++)
+                        memcpy(rendered.data() + row * desc.width * 4,
+                               static_cast<const char*>(pData) + row * rowPitch,
+                               desc.width * 4);
+                    GetDevice()->unmapStagingTexture(staging);
+                }
+
+                // Also save the rendered frame for visual inspection.
+                if (wantsSave)
+                {
+                    // Already saved above.
+                }
+                else
+                {
+                    SaveTexture(GetDevice(), m_renderTargets->HdrColor, "test_output.bmp");
+                }
+
+                size_t bW = 0, bH = 0;
+                auto baseline = LoadImageRGBA8(m_args.compareBaselinePath, bW, bH);
+                if (baseline.empty())
+                {
+                    log::error("Failed to load baseline image: %s", m_args.compareBaselinePath.c_str());
+                    g_ExitCode = 1;
+                }
+                else if (bW != desc.width || bH != desc.height)
+                {
+                    log::error("Baseline size mismatch: baseline %zux%zu vs rendered %ux%u",
+                        bW, bH, desc.width, desc.height);
+                    g_ExitCode = 1;
+                }
+                else
+                {
+                    StochasticThresholds thresholds;
+                    thresholds.tileSize = 32;
+                    thresholds.absAvgDeltaThreshold = 0.05f;
+                    thresholds.relDifferenceThreshold = 0.08f;
+                    thresholds.absStdDevDeltaThreshold = 0.05f;
+
+                    StochasticResult result = CompareStochastic(
+                        rendered.data(), baseline.data(), desc.width, desc.height, thresholds);
+
+                    log::info("%s", result.summary.c_str());
+
+                    g_ExitCode = result.passed ? 0 : 1;
+                    if (result.passed)
+                        log::info("Baseline comparison PASSED.");
+                    else
+                        log::error("Baseline comparison FAILED.");
+                }
+            }
+
+            glfwSetWindowShouldClose(GetDeviceManager()->GetWindow(), 1);
+        }
+
         m_lightingPasses->NextFrame();
         m_renderTargets->NextFrame();
 
         m_viewPrevious = m_view;
+        m_renderFrameIndex++;
     }
 
 private:
@@ -361,28 +445,9 @@ private:
     std::unique_ptr<RtxdiResources> m_rtxdiResources;
 
     UIData& m_ui;
+    CommandLineArguments m_args;
+    uint32_t m_renderFrameIndex = 0;
 };
-
-void ProcessCommandLine(int argc, char** argv, app::DeviceCreationParameters& deviceParams, nvrhi::GraphicsAPI& api)
-{
-    for (int i = 1; i < argc; i++)
-    {
-        if (strcmp(argv[i], "--debug") == 0)
-        {
-            deviceParams.enableDebugRuntime = true;
-            deviceParams.enableNvrhiValidationLayer = true;
-        }
-        else if (strcmp(argv[i], "--vk") == 0)
-        {
-            api = nvrhi::GraphicsAPI::VULKAN;
-        }
-        else
-        {
-            log::error("Unknown command line argument: %s", argv[i]);
-            exit(1);
-        }
-    }
-}
 
 #if defined(_WIN32)
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
@@ -398,20 +463,23 @@ int main(int argc, char** argv)
     deviceParams.vsyncEnabled = true;
     deviceParams.infoLogSeverity = log::Severity::Debug;
 
-    UIData ui;
+    CommandLineArguments args;
+
 #if DONUT_WITH_DX12
-    nvrhi::GraphicsAPI api = nvrhi::GraphicsAPI::D3D12;
+    args.graphicsApi = nvrhi::GraphicsAPI::D3D12;
 #else
-    nvrhi::GraphicsAPI api = nvrhi::GraphicsAPI::VULKAN;
+    args.graphicsApi = nvrhi::GraphicsAPI::VULKAN;
 #endif
 
 #if defined(_WIN32)
-    ProcessCommandLine(__argc, __argv, deviceParams, api);
+    ProcessCommandLine(__argc, __argv, deviceParams, args);
 #else
-    ProcessCommandLine(argc, argv, deviceParams, api);
+    ProcessCommandLine(argc, argv, deviceParams, args);
 #endif
 
-    app::DeviceManager* deviceManager = app::DeviceManager::Create(api);
+    UIData ui;
+
+    app::DeviceManager* deviceManager = app::DeviceManager::Create(args.graphicsApi);
     
     const char* apiString = nvrhi::utils::GraphicsAPIToString(deviceManager->GetGraphicsAPI());
 
@@ -434,7 +502,7 @@ int main(int argc, char** argv)
     }
 
     {
-        SceneRenderer sceneRenderer(deviceManager, ui);
+        SceneRenderer sceneRenderer(deviceManager, ui, args);
         if (sceneRenderer.Init())
         {
             UserInterface userInterface(deviceManager, *sceneRenderer.GetRootFs(), ui);
@@ -453,5 +521,5 @@ int main(int argc, char** argv)
 
     delete deviceManager;
 
-    return 0;
+    return g_ExitCode;
 }

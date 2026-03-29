@@ -27,6 +27,7 @@ struct CommandLineArguments
     uint32_t saveFrameIndex = 64;
     std::string saveFrameFileName;
     std::string compareBaselinePath;
+    std::string scenePath;
     int renderWidth = 0;
     int renderHeight = 0;
     bool disableGI = false;

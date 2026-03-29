@@ -27,6 +27,7 @@ namespace donut::engine
 namespace rtxdi
 {
     class ReSTIRDIContext;
+    class ReSTIRGIContext;
 }
 
 class RenderTargets;
@@ -65,6 +66,7 @@ public:
     void Render(
         nvrhi::ICommandList* commandList,
         rtxdi::ReSTIRDIContext& context,
+        rtxdi::ReSTIRGIContext& giContext,
         const donut::engine::IView& view,
         const donut::engine::IView& previousView,
         const Settings& localSettings,

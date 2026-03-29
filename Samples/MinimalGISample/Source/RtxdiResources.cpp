@@ -10,6 +10,7 @@
 
 #include "RtxdiResources.h"
 #include <Rtxdi/DI/ReSTIRDI.h>
+#include <Rtxdi/GI/ReSTIRGI.h>
 
 #include <donut/core/math/math.h>
 
@@ -21,7 +22,8 @@ RtxdiResources::RtxdiResources(
     const rtxdi::ReSTIRDIContext& context,
     uint32_t maxEmissiveMeshes,
     uint32_t maxEmissiveTriangles,
-    uint32_t maxGeometryInstances) :
+    uint32_t maxGeometryInstances,
+    uint32_t giReservoirArrayPitch) :
     m_neighborOffsetsInitialized(false),
     m_maxEmissiveMeshes(maxEmissiveMeshes),
     m_maxEmissiveTriangles(maxEmissiveTriangles),
@@ -74,6 +76,27 @@ RtxdiResources::RtxdiResources(
     lightReservoirBufferDesc.debugName = "LightReservoirBuffer";
     lightReservoirBufferDesc.canHaveUAVs = true;
     LightReservoirBuffer = device->createBuffer(lightReservoirBufferDesc);
+
+    if (giReservoirArrayPitch > 0)
+    {
+        nvrhi::BufferDesc giReservoirBufferDesc;
+        giReservoirBufferDesc.byteSize = sizeof(RTXDI_PackedGIReservoir) * giReservoirArrayPitch * rtxdi::c_NumReSTIRGIReservoirBuffers;
+        giReservoirBufferDesc.structStride = sizeof(RTXDI_PackedGIReservoir);
+        giReservoirBufferDesc.initialState = nvrhi::ResourceStates::UnorderedAccess;
+        giReservoirBufferDesc.keepInitialState = true;
+        giReservoirBufferDesc.debugName = "GIReservoirBuffer";
+        giReservoirBufferDesc.canHaveUAVs = true;
+        GIReservoirBuffer = device->createBuffer(giReservoirBufferDesc);
+
+        nvrhi::BufferDesc secondaryGBufferDesc;
+        secondaryGBufferDesc.byteSize = sizeof(SecondaryGBufferData) * giReservoirArrayPitch;
+        secondaryGBufferDesc.structStride = sizeof(SecondaryGBufferData);
+        secondaryGBufferDesc.initialState = nvrhi::ResourceStates::UnorderedAccess;
+        secondaryGBufferDesc.keepInitialState = true;
+        secondaryGBufferDesc.debugName = "SecondaryGBuffer";
+        secondaryGBufferDesc.canHaveUAVs = true;
+        SecondaryGBuffer = device->createBuffer(secondaryGBufferDesc);
+    }
 }
 
 void RtxdiResources::InitializeNeighborOffsets(nvrhi::ICommandList* commandList, uint32_t neighborOffsetCount)

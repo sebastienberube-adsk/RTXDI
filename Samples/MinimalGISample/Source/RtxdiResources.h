@@ -24,6 +24,8 @@ public:
     nvrhi::BufferHandle LightDataBuffer;
     nvrhi::BufferHandle NeighborOffsetsBuffer;
     nvrhi::BufferHandle LightReservoirBuffer;
+    nvrhi::BufferHandle GIReservoirBuffer;
+    nvrhi::BufferHandle SecondaryGBuffer;
     nvrhi::BufferHandle GeometryInstanceToLightBuffer;
 
     RtxdiResources(
@@ -31,7 +33,8 @@ public:
         const rtxdi::ReSTIRDIContext& context,
         uint32_t maxEmissiveMeshes,
         uint32_t maxEmissiveTriangles,
-        uint32_t maxMeshInstances);
+        uint32_t maxMeshInstances,
+        uint32_t giReservoirArrayPitch = 0);
 
     void InitializeNeighborOffsets(nvrhi::ICommandList* commandList, uint32_t neighborOffsetCount);
 

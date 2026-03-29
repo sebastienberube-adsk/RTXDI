@@ -19,6 +19,7 @@
 #include <stb_image.h>
 #include <stb_image_write.h>
 #include <filesystem>
+#include <vector>
 
 using namespace donut;
 namespace fs = std::filesystem;
@@ -340,22 +341,16 @@ bool SaveTexture(nvrhi::IDevice* device, nvrhi::ITexture* texture, const char* w
         return false;
     }
 
-    uint32_t* textureInSysmem = new uint32_t[desc.width * desc.height];
-
-    if (!textureInSysmem)
-    {
-        log::error("Couldn't allocate the memory for a %dx%d texture on the CPU.", desc.width, desc.height);
-        return false;
-    }
-    
+    std::vector<uint8_t> packedPixels(desc.width * desc.height * 4);
     for (uint32_t row = 0; row < desc.height; row++)
     {
-        memcpy(textureInSysmem + row * desc.width, static_cast<char*>(pData) + row * rowPitch, desc.width * sizeof(uint32_t));
+        memcpy(packedPixels.data() + row * desc.width * 4,
+            static_cast<char*>(pData) + row * rowPitch,
+            desc.width * 4);
     }
 
     device->unmapStagingTexture(stagingTexture);
-    
-    
+
     bool success = true;
     if (writeFileName && *writeFileName)
     {
@@ -366,14 +361,12 @@ bool SaveTexture(nvrhi::IDevice* device, nvrhi::ITexture* texture, const char* w
             fs::create_directories(parentFolder);
         }
 
-        success = stbi_write_bmp(writeFileName, desc.width, desc.height, 4, pData) != 0;
+        success = stbi_write_bmp(writeFileName, desc.width, desc.height, 4, packedPixels.data()) != 0;
         if (success)
             log::info("Saved the screenshot into '%s'", writeFileName);
         else
             log::error("Failed to save the screenshot into '%s'", writeFileName);
     }
-    
-    delete[] textureInSysmem;
 
     return success;
 }

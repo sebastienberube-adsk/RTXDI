@@ -33,6 +33,10 @@ RWTexture2D<float4> u_MotionVectors : register(u7);
 RWTexture2D<float4> u_Emissive : register(u8);
 RWTexture2D<float4> u_SpecularLighting : register(u9);
 RWTexture2D<float4> u_HdrColor : register(u10);
+RWStructuredBuffer<RTXDI_PackedGIReservoir> u_GIReservoirs : register(u11);
+RWStructuredBuffer<SecondaryGBufferData> u_SecondaryGBuffer : register(u12);
+
+#define RTXDI_GI_RESERVOIR_BUFFER u_GIReservoirs
 
 // Other
 ConstantBuffer<ResamplingConstants> g_Const : register(b0);

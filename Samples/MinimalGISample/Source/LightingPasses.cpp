@@ -19,6 +19,7 @@
 #include <donut/core/log.h>
 #include <nvrhi/utils.h>
 #include <Rtxdi/DI/ReSTIRDI.h>
+#include <Rtxdi/GI/ReSTIRGI.h>
 
 using namespace donut::math;
 #include "../shaders/ShaderParameters.h"
@@ -67,6 +68,8 @@ LightingPasses::LightingPasses(
         nvrhi::BindingLayoutItem::Texture_UAV(8),
         nvrhi::BindingLayoutItem::Texture_UAV(9),
         nvrhi::BindingLayoutItem::Texture_UAV(10),
+        nvrhi::BindingLayoutItem::StructuredBuffer_UAV(11),
+        nvrhi::BindingLayoutItem::StructuredBuffer_UAV(12),
         
         nvrhi::BindingLayoutItem::VolatileConstantBuffer(0),
         nvrhi::BindingLayoutItem::Sampler(0),
@@ -116,6 +119,8 @@ void LightingPasses::CreateBindingSet(
             nvrhi::BindingSetItem::Texture_UAV(8, renderTargets.Emissive),
             nvrhi::BindingSetItem::Texture_UAV(9, renderTargets.SpecularLighting),
             nvrhi::BindingSetItem::Texture_UAV(10, renderTargets.HdrColor),
+            nvrhi::BindingSetItem::StructuredBuffer_UAV(11, resources.GIReservoirBuffer ? resources.GIReservoirBuffer : resources.LightReservoirBuffer),
+            nvrhi::BindingSetItem::StructuredBuffer_UAV(12, resources.SecondaryGBuffer ? resources.SecondaryGBuffer : resources.LightReservoirBuffer),
             
             nvrhi::BindingSetItem::ConstantBuffer(0, m_constantBuffer),
             nvrhi::BindingSetItem::Sampler(0, m_commonPasses->m_LinearWrapSampler),
@@ -160,6 +165,7 @@ void LightingPasses::CreatePipelines()
 void LightingPasses::Render(
     nvrhi::ICommandList* commandList,
     rtxdi::ReSTIRDIContext& context,
+    rtxdi::ReSTIRGIContext& giContext,
     const donut::engine::IView& view,
     const donut::engine::IView& previousView,
     const Settings& localSettings,
@@ -203,6 +209,14 @@ void LightingPasses::Render(
     constants.restirDI.temporalResamplingParams = context.GetTemporalResamplingParameters();
     constants.restirDI.spatialResamplingParams = context.GetSpatialResamplingParameters();
     constants.restirDI.shadingParams = context.GetShadingParameters();
+
+    constants.restirGI.reservoirBufferParams = giContext.GetReservoirBufferParameters();
+    constants.restirGI.bufferIndices = giContext.GetBufferIndices();
+    constants.restirGI.temporalResamplingParams = giContext.GetTemporalResamplingParameters();
+    constants.restirGI.spatialResamplingParams = giContext.GetSpatialResamplingParameters();
+    constants.restirGI.finalShadingParams = giContext.GetFinalShadingParameters();
+    constants.brdfPT.enableReSTIRGI = 0;
+    constants.enableBrdfIndirect = 0;
 
     constants.enableResampling = localSettings.enableResampling;
 

@@ -10,6 +10,7 @@
 
 // Include this first just to test the cleanliness
 #include <Rtxdi/DI/ReSTIRDI.h>
+#include <Rtxdi/GI/ReSTIRGI.h>
 
 #include <donut/app/ApplicationBase.h>
 #include <donut/app/Camera.h>
@@ -224,6 +225,7 @@ public:
         m_bindingCache.Clear();
         m_renderTargets = nullptr;
         m_restirDIContext = nullptr;
+        m_restirGIContext = nullptr;
         m_rtxdiResources = nullptr;
     }
     
@@ -268,6 +270,15 @@ public:
             m_restirDIContext = std::make_unique<rtxdi::ReSTIRDIContext>(contextParams);
         }
 
+        if (!m_restirGIContext)
+        {
+            rtxdi::ReSTIRGIStaticParameters giParams;
+            giParams.RenderWidth = fbinfo.width;
+            giParams.RenderHeight = fbinfo.height;
+
+            m_restirGIContext = std::make_unique<rtxdi::ReSTIRGIContext>(giParams);
+        }
+
         if (!m_renderTargets)
         {
             m_renderTargets = std::make_unique<RenderTargets>(GetDevice(), int2(fbinfo.width, fbinfo.height));
@@ -281,8 +292,10 @@ public:
             m_prepareLightsPass->CountLightsInScene(numEmissiveMeshes, numEmissiveTriangles);
             uint32_t numGeometryInstances = uint32_t(m_scene->GetSceneGraph()->GetGeometryInstancesCount());
 
+            uint32_t giPitch = m_restirGIContext->GetReservoirBufferParameters().reservoirArrayPitch;
+
             m_rtxdiResources = std::make_unique<RtxdiResources>(GetDevice(), *m_restirDIContext,
-                numEmissiveMeshes, numEmissiveTriangles, numGeometryInstances);
+                numEmissiveMeshes, numEmissiveTriangles, numGeometryInstances, giPitch);
 
             m_prepareLightsPass->CreateBindingSet(*m_rtxdiResources);
             
@@ -320,11 +333,13 @@ public:
         m_rtxdiResources->InitializeNeighborOffsets(m_commandList, m_restirDIContext->GetStaticParameters().NeighborOffsetCount);
         
         m_restirDIContext->SetFrameIndex(GetFrameIndex());
+        m_restirGIContext->SetFrameIndex(GetFrameIndex());
 
         RTXDI_LightBufferParameters lightBufferParams = m_prepareLightsPass->Process(m_commandList);
 
         m_lightingPasses->Render(m_commandList,
             *m_restirDIContext,
+            *m_restirGIContext,
             m_view, m_viewPrevious,
             m_ui.lightingSettings,
             lightBufferParams);
@@ -440,6 +455,7 @@ private:
     engine::BindingCache m_bindingCache;
 
     std::unique_ptr<rtxdi::ReSTIRDIContext> m_restirDIContext;
+    std::unique_ptr<rtxdi::ReSTIRGIContext> m_restirGIContext;
     std::unique_ptr<PrepareLightsPass> m_prepareLightsPass;
     std::unique_ptr<LightingPasses> m_lightingPasses;
     std::unique_ptr<RtxdiResources> m_rtxdiResources;

@@ -12,6 +12,10 @@ int2 RAB_ClampSamplePositionIntoView(int2 pixelPosition, bool previousFrame)
 
 bool RAB_ValidateGISampleWithJacobian(inout float jacobian)
 {
+    if (jacobian > 10.0 || jacobian < 1 / 10.0)
+        return false;
+
+    jacobian = clamp(jacobian, 1 / 3.0, 3.0);
     return true;
 }
 

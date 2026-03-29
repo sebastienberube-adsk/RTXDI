@@ -9,6 +9,7 @@
  **************************************************************************/
 
 #include <ImageComparison.h>
+#include <gtest/gtest.h>
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -128,112 +129,84 @@ static int RunSample(const std::string& exeName, const std::string& extraArgs,
     return rc;
 }
 
-static int CompareImages(const fs::path& imageA, const fs::path& imageB, const std::string& label)
+static ::testing::AssertionResult CompareImages(
+    const fs::path& imageA, const fs::path& imageB, const std::string& label)
 {
     size_t wA = 0, hA = 0, wB = 0, hB = 0;
     auto pixA = LoadImageRGBA8(imageA.string(), wA, hA);
     auto pixB = LoadImageRGBA8(imageB.string(), wB, hB);
 
     if (pixA.empty())
-    {
-        std::cerr << "  ERROR: failed to load image A: " << imageA << std::endl;
-        return 1;
-    }
+        return ::testing::AssertionFailure() << "Failed to load image A: " << imageA;
     if (pixB.empty())
-    {
-        std::cerr << "  ERROR: failed to load image B: " << imageB << std::endl;
-        return 1;
-    }
+        return ::testing::AssertionFailure() << "Failed to load image B: " << imageB;
     if (wA != wB || hA != hB)
-    {
-        std::cerr << "  ERROR: size mismatch: " << wA << "x" << hA
-                  << " vs " << wB << "x" << hB << std::endl;
-        return 1;
-    }
+        return ::testing::AssertionFailure()
+            << "Size mismatch: " << wA << "x" << hA << " vs " << wB << "x" << hB;
 
     auto result = CompareStochastic(pixA.data(), pixB.data(), wA, hA, GetThresholds());
     std::cout << "  [" << label << "] " << result.summary;
 
-    return result.passed ? 0 : 1;
+    if (result.passed)
+        return ::testing::AssertionSuccess();
+    return ::testing::AssertionFailure() << result.summary;
 }
 
 // ---------------------------------------------------------------------------
-// Test cases
+// Test cases -- each TEST() appears individually in VS Test Explorer.
 // ---------------------------------------------------------------------------
 
-static int Test_MinimalDI_vs_MinimalGI_DI()
+TEST(SampleImageTests, MinimalDI_vs_MinimalGI_DI)
 {
-    std::cout << "=== MinimalDI_vs_MinimalGI_DI ===" << std::endl;
-
     fs::path outA = GetOutputDir() / "MinimalSample_DI.bmp";
     fs::path outB = GetOutputDir() / "MinimalGISample_DI.bmp";
 
-    int rc = RunSample("MinimalSample", "", outA, 64);
-    if (rc != 0) return rc;
-
-    rc = RunSample("MinimalGISample", "--disable-gi", outB, 64);
-    if (rc != 0) return rc;
-
-    return CompareImages(outA, outB, "MinimalDI vs MinimalGI_DI");
+    ASSERT_EQ(RunSample("MinimalSample", "", outA, 64), 0) << "MinimalSample failed to run";
+    ASSERT_EQ(RunSample("MinimalGISample", "--disable-gi", outB, 64), 0) << "MinimalGISample failed to run";
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalDI vs MinimalGI_DI"));
 }
 
-static int Test_MinimalGI_vs_Intermediate_NoDI()
+TEST(SampleImageTests, MinimalGI_vs_Intermediate_NoDI)
 {
-    std::cout << "=== MinimalGI_vs_Intermediate_NoDI ===" << std::endl;
-
     fs::path outA = GetOutputDir() / "MinimalGISample_DI.bmp";
     fs::path outB = GetOutputDir() / "IntermediateSample_NoDI.bmp";
 
-    int rc = RunSample("MinimalGISample", "--disable-gi", outA, 64);
-    if (rc != 0) return rc;
-
-    rc = RunSample("IntermediateSample", "--indirect-mode NONE --aa-mode ACC", outB, 128);
-    if (rc != 0) return rc;
-
-    return CompareImages(outA, outB, "MinimalGI vs Intermediate (no GI)");
+    ASSERT_EQ(RunSample("MinimalGISample", "--disable-gi", outA, 64), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode NONE --aa-mode ACC", outB, 128), 0)
+        << "IntermediateSample failed to run";
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (no GI)"));
 }
 
-static int Test_MinimalGI_vs_Intermediate_GI()
+TEST(SampleImageTests, MinimalGI_vs_Intermediate_GI)
 {
-    std::cout << "=== MinimalGI_vs_Intermediate_GI ===" << std::endl;
-
     fs::path outA = GetOutputDir() / "MinimalGISample_GI.bmp";
     fs::path outB = GetOutputDir() / "IntermediateSample_GI.bmp";
 
-    int rc = RunSample("MinimalGISample", "", outA, 64);
-    if (rc != 0) return rc;
-
-    rc = RunSample("IntermediateSample", "--indirect-mode RESTIRGI --aa-mode ACC", outB, 128);
-    if (rc != 0) return rc;
-
-    return CompareImages(outA, outB, "MinimalGI vs Intermediate (GI)");
+    ASSERT_EQ(RunSample("MinimalGISample", "", outA, 64), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode RESTIRGI --aa-mode ACC", outB, 128), 0)
+        << "IntermediateSample failed to run";
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (GI)"));
 }
 
-static int Test_Intermediate_vs_Full_NoNRD()
+TEST(SampleImageTests, Intermediate_vs_Full_NoNRD)
 {
-    std::cout << "=== Intermediate_vs_Full_NoNRD ===" << std::endl;
-
     fs::path outA = GetOutputDir() / "IntermediateSample_NoNRD.bmp";
     fs::path outB = GetOutputDir() / "FullSample_NoNRD.bmp";
 
-    int rc = RunSample("IntermediateSample", "--aa-mode ACC", outA, 128);
-    if (rc != 0) return rc;
-
-    rc = RunSample("FullSample", "--denoiser OFF --aa-mode ACC", outB, 128);
-    if (rc != 0) return rc;
-
-    return CompareImages(outA, outB, "Intermediate vs Full (no NRD)");
+    ASSERT_EQ(RunSample("IntermediateSample", "--aa-mode ACC", outA, 128), 0)
+        << "IntermediateSample failed to run";
+    ASSERT_EQ(RunSample("FullSample", "--denoiser OFF --aa-mode ACC", outB, 128), 0)
+        << "FullSample failed to run";
+    EXPECT_TRUE(CompareImages(outA, outB, "Intermediate vs Full (no NRD)"));
 }
 
-static int Test_Full_DX12_Baseline()
+TEST(SampleImageTests, Full_DX12_Baseline)
 {
-    std::cout << "=== Full_DX12_Baseline ===" << std::endl;
-
     fs::path output = GetOutputDir() / "FullSample_DX12.bmp";
     fs::path baseline = GetBaselineDir() / "Full_DX12_Baseline.bmp";
 
-    int rc = RunSample("FullSample", "--aa-mode DLSS --denoiser RELAX", output, 128);
-    if (rc != 0) return rc;
+    ASSERT_EQ(RunSample("FullSample", "--aa-mode DLSS --denoiser RELAX", output, 128), 0)
+        << "FullSample failed to run";
 
     if (!fs::exists(baseline))
     {
@@ -241,73 +214,22 @@ static int Test_Full_DX12_Baseline()
                   << baseline << std::endl;
         fs::copy_file(output, baseline, fs::copy_options::overwrite_existing);
         std::cout << "  PASS (baseline generated -- re-run to validate)" << std::endl;
-        return 0;
+        return;
     }
 
-    return CompareImages(output, baseline, "FullSample DX12 vs baseline");
+    EXPECT_TRUE(CompareImages(output, baseline, "FullSample DX12 vs baseline"));
 }
 
-static int Test_Full_VK_Baseline()
+TEST(SampleImageTests, Full_VK_Baseline)
 {
-    std::cout << "=== Full_VK_Baseline ===" << std::endl;
-
     fs::path output = GetOutputDir() / "FullSample_VK.bmp";
     fs::path baseline = GetBaselineDir() / "Full_DX12_Baseline.bmp";
 
-    int rc = RunSample("FullSample", "--vk --aa-mode DLSS --denoiser RELAX", output, 128);
-    if (rc != 0) return rc;
+    ASSERT_EQ(RunSample("FullSample", "--vk --aa-mode DLSS --denoiser RELAX", output, 128), 0)
+        << "FullSample failed to run";
 
-    if (!fs::exists(baseline))
-    {
-        std::cerr << "  ERROR: DX12 baseline not found at " << baseline
-                  << ". Run Full_DX12_Baseline first." << std::endl;
-        return 1;
-    }
+    ASSERT_TRUE(fs::exists(baseline))
+        << "DX12 baseline not found at " << baseline << ". Run Full_DX12_Baseline first.";
 
-    return CompareImages(output, baseline, "FullSample VK vs DX12 baseline");
-}
-
-// ---------------------------------------------------------------------------
-// Dispatch
-// ---------------------------------------------------------------------------
-
-struct TestEntry
-{
-    const char* name;
-    int (*func)();
-};
-
-static const TestEntry kTests[] = {
-    { "MinimalDI_vs_MinimalGI_DI",      Test_MinimalDI_vs_MinimalGI_DI },
-    { "MinimalGI_vs_Intermediate_NoDI",  Test_MinimalGI_vs_Intermediate_NoDI },
-    { "MinimalGI_vs_Intermediate_GI",    Test_MinimalGI_vs_Intermediate_GI },
-    { "Intermediate_vs_Full_NoNRD",      Test_Intermediate_vs_Full_NoNRD },
-    { "Full_DX12_Baseline",              Test_Full_DX12_Baseline },
-    { "Full_VK_Baseline",                Test_Full_VK_Baseline },
-};
-
-int main(int argc, char** argv)
-{
-    if (argc < 2)
-    {
-        std::cerr << "Usage: " << argv[0] << " <test_name>" << std::endl;
-        std::cerr << "Available tests:" << std::endl;
-        for (const auto& t : kTests)
-            std::cerr << "  " << t.name << std::endl;
-        return 1;
-    }
-
-    std::string testName = argv[1];
-
-    for (const auto& t : kTests)
-    {
-        if (testName == t.name)
-            return t.func();
-    }
-
-    std::cerr << "Unknown test: " << testName << std::endl;
-    std::cerr << "Available tests:" << std::endl;
-    for (const auto& t : kTests)
-        std::cerr << "  " << t.name << std::endl;
-    return 1;
+    EXPECT_TRUE(CompareImages(output, baseline, "FullSample VK vs DX12 baseline"));
 }

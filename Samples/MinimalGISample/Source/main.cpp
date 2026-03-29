@@ -378,21 +378,22 @@ public:
 
         if ((wantsSave || wantsCompare) && m_renderFrameIndex == m_args.saveFrameIndex)
         {
+            nvrhi::ITexture* backBuffer = framebuffer->getDesc().colorAttachments[0].texture;
+
             if (wantsSave)
             {
-                bool success = SaveTexture(GetDevice(), m_renderTargets->HdrColor, m_args.saveFrameFileName.c_str());
+                bool success = SaveTexture(GetDevice(), backBuffer, m_args.saveFrameFileName.c_str());
                 g_ExitCode = success ? 0 : 1;
             }
 
             if (wantsCompare)
             {
-                // Readback the current frame.
-                nvrhi::TextureDesc desc = m_renderTargets->HdrColor->getDesc();
+                nvrhi::TextureDesc desc = backBuffer->getDesc();
                 nvrhi::CommandListHandle readbackCmdList = GetDevice()->createCommandList();
                 readbackCmdList->open();
                 nvrhi::StagingTextureHandle staging =
                     GetDevice()->createStagingTexture(desc, nvrhi::CpuAccessMode::Read);
-                readbackCmdList->copyTexture(staging, nvrhi::TextureSlice(), m_renderTargets->HdrColor, nvrhi::TextureSlice());
+                readbackCmdList->copyTexture(staging, nvrhi::TextureSlice(), backBuffer, nvrhi::TextureSlice());
                 readbackCmdList->close();
                 GetDevice()->executeCommandList(readbackCmdList);
                 GetDevice()->waitForIdle();
@@ -409,14 +410,9 @@ public:
                     GetDevice()->unmapStagingTexture(staging);
                 }
 
-                // Also save the rendered frame for visual inspection.
-                if (wantsSave)
+                if (!wantsSave)
                 {
-                    // Already saved above.
-                }
-                else
-                {
-                    SaveTexture(GetDevice(), m_renderTargets->HdrColor, "test_output.bmp");
+                    SaveTexture(GetDevice(), backBuffer, "test_output.bmp");
                 }
 
                 size_t bW = 0, bH = 0;

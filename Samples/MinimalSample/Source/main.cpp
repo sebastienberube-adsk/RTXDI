@@ -95,6 +95,12 @@ static bool SaveTexture(nvrhi::IDevice* device, nvrhi::ITexture* texture, const 
 
     device->unmapStagingTexture(stagingTexture);
 
+    if (desc.format == nvrhi::Format::BGRA8_UNORM || desc.format == nvrhi::Format::SBGRA8_UNORM)
+    {
+        for (size_t i = 0; i < packedPixels.size(); i += 4)
+            std::swap(packedPixels[i], packedPixels[i + 2]);
+    }
+
     bool success = true;
     if (writeFileName && *writeFileName)
     {
@@ -447,7 +453,8 @@ public:
 
         if (!m_args.saveFrameFileName.empty() && m_renderFrameIndex == m_args.saveFrameIndex)
         {
-            bool success = SaveTexture(GetDevice(), m_renderTargets->HdrColor, m_args.saveFrameFileName.c_str());
+            nvrhi::ITexture* backBuffer = framebuffer->getDesc().colorAttachments[0].texture;
+            bool success = SaveTexture(GetDevice(), backBuffer, m_args.saveFrameFileName.c_str());
             g_ExitCode = success ? 0 : 1;
             glfwSetWindowShouldClose(GetDeviceManager()->GetWindow(), 1);
         }

@@ -45,6 +45,7 @@ void ProcessCommandLine(int argc, char** argv,
         ("save-file", "Save frame to file and exit", value(args.saveFrameFileName))
         ("save-frame", "Index of the frame to save (default 64)", value(args.saveFrameIndex))
         ("compare-baseline", "Path to baseline image for stochastic comparison", value(args.compareBaselinePath))
+        ("scene", "Scene file path (VFS path, e.g. /Assets/Media/Arcade/Arcade.gltf)", value(args.scenePath))
         ("width", "Render width override", value(args.renderWidth))
         ("height", "Render height override", value(args.renderHeight))
         ("disable-gi", "Disable ReSTIR GI (DI only)", value<bool>())

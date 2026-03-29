@@ -385,7 +385,7 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         shadingOutput += primary.emissiveColor;
         shadingOutput = basicToneMapping(shadingOutput, 0.005);
 
-        u_ShadingOutput[pixelPosition] = float4(shadingOutput, 0);
+        u_ShadingOutput[pixelPosition] = float4(shadingOutput, 1.0);
     }
     else
     {

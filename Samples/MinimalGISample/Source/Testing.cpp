@@ -117,6 +117,12 @@ bool SaveTexture(nvrhi::IDevice* device, nvrhi::ITexture* texture, const char* w
 
     device->unmapStagingTexture(stagingTexture);
 
+    if (desc.format == nvrhi::Format::BGRA8_UNORM || desc.format == nvrhi::Format::SBGRA8_UNORM)
+    {
+        for (size_t i = 0; i < packedPixels.size(); i += 4)
+            std::swap(packedPixels[i], packedPixels[i + 2]);
+    }
+
     bool success = true;
     if (writeFileName && *writeFileName)
     {

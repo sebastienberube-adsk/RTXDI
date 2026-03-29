@@ -42,6 +42,7 @@ public:
     {
         bool unbiasedMode = false;
         bool enableResampling = true;
+        bool enableReSTIRGI = true;
 
         uint32_t numInitialSamples = 8;
         uint32_t numSpatialSamples = 1;
@@ -86,6 +87,7 @@ private:
     nvrhi::ShaderHandle m_shadeSecondarySurfacesShader;
     nvrhi::ShaderHandle m_giTemporalResamplingShader;
     nvrhi::ShaderHandle m_giSpatialResamplingShader;
+    nvrhi::ShaderHandle m_giFinalShadingShader;
     nvrhi::ShaderHandle m_compositingShader;
 
     nvrhi::ComputePipelineHandle m_gbufferPipeline;
@@ -97,6 +99,7 @@ private:
     nvrhi::ComputePipelineHandle m_shadeSecondarySurfacesPipeline;
     nvrhi::ComputePipelineHandle m_giTemporalResamplingPipeline;
     nvrhi::ComputePipelineHandle m_giSpatialResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_giFinalShadingPipeline;
     nvrhi::ComputePipelineHandle m_compositingPipeline;
 
     nvrhi::BindingLayoutHandle m_bindingLayout;

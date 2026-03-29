@@ -149,6 +149,7 @@ void LightingPasses::CreatePipelines()
     m_shadeSecondarySurfacesShader = m_shaderFactory->CreateShader("app/ShadeSecondarySurfaces.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_giTemporalResamplingShader = m_shaderFactory->CreateShader("app/GI/TemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_giSpatialResamplingShader = m_shaderFactory->CreateShader("app/GI/SpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_giFinalShadingShader = m_shaderFactory->CreateShader("app/GI/FinalShading.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_compositingShader = m_shaderFactory->CreateShader("app/Compositing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     auto createPipeline = [this](nvrhi::IShader* shader) -> nvrhi::ComputePipelineHandle {
@@ -167,6 +168,7 @@ void LightingPasses::CreatePipelines()
     m_shadeSecondarySurfacesPipeline = createPipeline(m_shadeSecondarySurfacesShader);
     m_giTemporalResamplingPipeline = createPipeline(m_giTemporalResamplingShader);
     m_giSpatialResamplingPipeline = createPipeline(m_giSpatialResamplingShader);
+    m_giFinalShadingPipeline = createPipeline(m_giFinalShadingShader);
     m_compositingPipeline = createPipeline(m_compositingShader);
 }
 
@@ -223,8 +225,8 @@ void LightingPasses::Render(
     constants.restirGI.temporalResamplingParams = giContext.GetTemporalResamplingParameters();
     constants.restirGI.spatialResamplingParams = giContext.GetSpatialResamplingParameters();
     constants.restirGI.finalShadingParams = giContext.GetFinalShadingParameters();
-    constants.brdfPT.enableReSTIRGI = 0;
-    constants.enableBrdfIndirect = 0;
+    constants.brdfPT.enableReSTIRGI = localSettings.enableReSTIRGI ? 1 : 0;
+    constants.enableBrdfIndirect = localSettings.enableReSTIRGI ? 1 : 0;
 
     constants.enableResampling = localSettings.enableResampling;
 
@@ -315,6 +317,14 @@ void LightingPasses::Render(
 
         commandList->beginMarker("GISpatialResampling");
         state.pipeline = m_giSpatialResamplingPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+
+        commandList->setResourceStatesForBindingSet(m_bindingSet);
+
+        commandList->beginMarker("GIFinalShading");
+        state.pipeline = m_giFinalShadingPipeline;
         commandList->setComputeState(state);
         commandList->dispatch(dispatchWidth, dispatchHeight);
         commandList->endMarker();

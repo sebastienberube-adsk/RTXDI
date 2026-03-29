@@ -75,6 +75,7 @@ void UserInterface::buildUI()
         ImGui::Separator();
 
         ImGui::Checkbox("Enable Resampling", &m_ui.lightingSettings.enableResampling);
+        ImGui::Checkbox("Enable ReSTIR GI", &m_ui.lightingSettings.enableReSTIRGI);
         ImGui::Checkbox("Unbiased Mode", &m_ui.lightingSettings.unbiasedMode);
 
         ImGui::SliderInt("Initial Samples", (int*)&m_ui.lightingSettings.numInitialSamples, 1, 32);

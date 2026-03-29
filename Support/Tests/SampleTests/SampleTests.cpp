@@ -129,32 +129,57 @@ static int RunSample(const std::string& exeName, const std::string& extraArgs,
     return rc;
 }
 
-// Saves an annotated copy of imageA with yellow 1-pixel inner borders on
-// every tile that failed the stochastic comparison.
+// Saves an annotated copy with colored 1-pixel inner borders on failed tiles.
+// Border color: yellow (1x threshold) -> red (2x+ threshold).
 static void SaveAnnotatedImage(const uint8_t* pixels, size_t width, size_t height,
-                               const StochasticResult& result, uint32_t tileSize,
+                               const StochasticResult& result,
+                               const StochasticThresholds& thresholds,
                                const fs::path& outputPath)
 {
     std::vector<uint8_t> annotated(pixels, pixels + width * height * 4);
-    const uint32_t ts = tileSize;
+    const uint32_t ts = thresholds.tileSize;
     const uint32_t W = static_cast<uint32_t>(width);
     const uint32_t H = static_cast<uint32_t>(height);
-
-    auto setYellow = [&](uint32_t px, uint32_t py) {
-        if (px < W && py < H)
-        {
-            size_t idx = ((size_t)py * W + px) * 4;
-            annotated[idx + 0] = 255;
-            annotated[idx + 1] = 255;
-            annotated[idx + 2] = 0;
-            annotated[idx + 3] = 255;
-        }
-    };
 
     for (const auto& tile : result.tiles)
     {
         if (tile.passed)
             continue;
+
+        // Compute worst metric/threshold ratio across failed channels.
+        float worstRatio = 1.0f;
+        for (int c = 0; c < 3; ++c)
+        {
+            if (!tile.channels[c].passed)
+            {
+                auto ratio = [](float value, float thresh) {
+                    return thresh > 0.0f ? value / thresh : (value > 0.0f ? 1e6f : 1.0f);
+                };
+                worstRatio = std::max(worstRatio, ratio(tile.channels[c].absAvgDelta,
+                                                        thresholds.absAvgDeltaThreshold));
+                worstRatio = std::max(worstRatio, ratio(tile.channels[c].relDelta,
+                                                        thresholds.relDifferenceThreshold));
+                worstRatio = std::max(worstRatio, ratio(tile.channels[c].absStdDevDelta,
+                                                        thresholds.absStdDevDeltaThreshold));
+            }
+        }
+
+        // Lerp: 1x -> yellow (255,255,0), 2x+ -> red (255,0,0).
+        float t = std::clamp((worstRatio - 1.0f), 0.0f, 1.0f);
+        uint8_t r = 255;
+        uint8_t g = static_cast<uint8_t>(255.0f * (1.0f - t) + 0.5f);
+        uint8_t b = 0;
+
+        auto setPixel = [&](uint32_t px, uint32_t py) {
+            if (px < W && py < H)
+            {
+                size_t idx = ((size_t)py * W + px) * 4;
+                annotated[idx + 0] = r;
+                annotated[idx + 1] = g;
+                annotated[idx + 2] = b;
+                annotated[idx + 3] = 255;
+            }
+        };
 
         uint32_t x0 = tile.tileX * ts;
         uint32_t y0 = tile.tileY * ts;
@@ -163,13 +188,13 @@ static void SaveAnnotatedImage(const uint8_t* pixels, size_t width, size_t heigh
 
         for (uint32_t x = x0; x < x1; x++)
         {
-            setYellow(x, y0);
-            if (y1 > y0 + 1) setYellow(x, y1 - 1);
+            setPixel(x, y0);
+            if (y1 > y0 + 1) setPixel(x, y1 - 1);
         }
         for (uint32_t y = y0 + 1; y + 1 < y1; y++)
         {
-            setYellow(x0, y);
-            if (x1 > x0 + 1) setYellow(x1 - 1, y);
+            setPixel(x0, y);
+            if (x1 > x0 + 1) setPixel(x1 - 1, y);
         }
     }
 
@@ -208,9 +233,9 @@ static ::testing::AssertionResult CompareImages(
         }
 
         auto thresholds = GetThresholds();
-        SaveAnnotatedImage(pixA.data(), wA, hA, result, thresholds.tileSize,
+        SaveAnnotatedImage(pixA.data(), wA, hA, result, thresholds,
             GetOutputDir() / (safeName + "_A_annotated.bmp"));
-        SaveAnnotatedImage(pixB.data(), wB, hB, result, thresholds.tileSize,
+        SaveAnnotatedImage(pixB.data(), wB, hB, result, thresholds,
             GetOutputDir() / (safeName + "_B_annotated.bmp"));
     }
 

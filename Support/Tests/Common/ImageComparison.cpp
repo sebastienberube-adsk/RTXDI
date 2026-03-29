@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 
@@ -125,8 +126,27 @@ StochasticResult CompareStochastic(
         }
     }
 
+    // Find worst value across all channels for each metric, and the tile it came from.
+    struct { float value = 0.0f; uint32_t tileX = 0, tileY = 0; } worstAbsAvg, worstRel, worstSD;
+    for (const auto& t : result.tiles)
+    {
+        for (int c = 0; c < 3; ++c)
+        {
+            if (t.channels[c].absAvgDelta > worstAbsAvg.value)
+                worstAbsAvg = { t.channels[c].absAvgDelta, t.tileX, t.tileY };
+            if (t.channels[c].relDelta > worstRel.value)
+                worstRel = { t.channels[c].relDelta, t.tileX, t.tileY };
+            if (t.channels[c].absStdDevDelta > worstSD.value)
+                worstSD = { t.channels[c].absStdDevDelta, t.tileX, t.tileY };
+        }
+    }
+
+    auto ratio = [](float value, float thresh) -> float {
+        return thresh > 0.0f ? value / thresh : (value > 0.0f ? 1e6f : 0.0f);
+    };
+
     std::stringstream ss;
-    ss.precision(6);
+    ss << std::defaultfloat << std::setprecision(6);
     ss << "Stochastic comparison: " << result.tilesX << "x" << result.tilesY
        << " tiles (" << thresholds.tileSize << "px), "
        << width << "x" << height << " image\n";
@@ -135,48 +155,94 @@ StochasticResult CompareStochastic(
     if (stdDevEnabled)
         ss << ", absStdDevDelta <= " << thresholds.absStdDevDeltaThreshold;
     ss << "\n";
-    ss << "  Max absolute avg delta    R=" << result.maxAbsAvgDelta[0]
-       << "  G=" << result.maxAbsAvgDelta[1]
-       << "  B=" << result.maxAbsAvgDelta[2] << "\n";
-    ss << "  Max relative difference   R=" << (result.maxRelDelta[0] * 100.0f) << "%"
-       << "  G=" << (result.maxRelDelta[1] * 100.0f) << "%"
-       << "  B=" << (result.maxRelDelta[2] * 100.0f) << "%\n";
-    ss << "  Max abs stddev delta      R=" << result.maxAbsStdDevDelta[0]
-       << "  G=" << result.maxAbsStdDevDelta[1]
-       << "  B=" << result.maxAbsStdDevDelta[2] << "\n";
+
+    ss << std::fixed << std::setprecision(3);
+    ss << "     Max absolute avg delta   "
+       << std::setw(8) << worstAbsAvg.value
+       << " [" << std::setprecision(2) << ratio(worstAbsAvg.value, thresholds.absAvgDeltaThreshold)
+       << "x threshold=" << std::setprecision(3) << thresholds.absAvgDeltaThreshold
+       << ", tile(" << worstAbsAvg.tileX << "," << worstAbsAvg.tileY << ")]\n";
+    ss << "     Max relative difference  " << std::setprecision(2)
+       << std::setw(7) << (worstRel.value * 100.0f) << "%"
+       << " [" << ratio(worstRel.value, thresholds.relDifferenceThreshold)
+       << "x threshold=" << (thresholds.relDifferenceThreshold * 100.0f) << "%"
+       << ", tile(" << worstRel.tileX << "," << worstRel.tileY << ")]\n";
+    ss << std::setprecision(3);
+    ss << "     Max abs stddev delta     "
+       << std::setw(8) << worstSD.value
+       << " [" << std::setprecision(2) << ratio(worstSD.value, thresholds.absStdDevDeltaThreshold)
+       << "x threshold=" << std::setprecision(3) << thresholds.absStdDevDeltaThreshold
+       << ", tile(" << worstSD.tileX << "," << worstSD.tileY << ")]\n";
+
     ss << "  Result: " << (result.passed ? "PASSED" : "FAILED")
        << " (" << result.failingTileCount << " / "
        << (result.tilesX * result.tilesY) << " tiles failed)\n";
 
     if (!result.passed)
     {
-        int shown = 0;
+        std::vector<const TileResult*> failed;
+        failed.reserve(result.failingTileCount);
         for (const auto& t : result.tiles)
         {
             if (!t.passed)
-            {
-                ss << "    FAIL tile(" << t.tileX << "," << t.tileY << "):";
-                const char* chName[] = { "R", "G", "B" };
+                failed.push_back(&t);
+        }
+        std::sort(failed.begin(), failed.end(),
+            [&thresholds, &ratio](const TileResult* a, const TileResult* b) {
+            auto severity = [&](const TileResult* t) {
+                float worst = 0.0f;
                 for (int c = 0; c < 3; ++c)
                 {
-                    if (!t.channels[c].passed)
+                    if (!t->channels[c].passed)
                     {
-                        ss << " " << chName[c]
-                           << "(abs=" << t.channels[c].absAvgDelta
-                           << " rel=" << (t.channels[c].relDelta * 100.0f) << "%"
-                           << " avgA=" << t.channels[c].avgA
-                           << " avgB=" << t.channels[c].avgB
-                           << " sdA=" << t.channels[c].stdDevA
-                           << " sdB=" << t.channels[c].stdDevB
-                           << " |dSD|=" << t.channels[c].absStdDevDelta << ")";
+                        worst = std::max(worst, ratio(t->channels[c].absAvgDelta,
+                                                      thresholds.absAvgDeltaThreshold));
+                        worst = std::max(worst, ratio(t->channels[c].relDelta,
+                                                      thresholds.relDifferenceThreshold));
+                        worst = std::max(worst, ratio(t->channels[c].absStdDevDelta,
+                                                      thresholds.absStdDevDeltaThreshold));
                     }
                 }
-                ss << "\n";
-                if (++shown >= 10)
+                return worst;
+            };
+            return severity(a) > severity(b);
+        });
+
+        ss << std::setprecision(6) << std::defaultfloat;
+        int shown = 0;
+        for (const auto* t : failed)
+        {
+            // Use worst value across R/G/B for each metric.
+            float abs = 0, rel = 0, dSD = 0, avgA = 0, avgB = 0, sdA = 0, sdB = 0;
+            for (int c = 0; c < 3; ++c)
+            {
+                if (t->channels[c].absAvgDelta > abs)
                 {
-                    ss << "    ... (" << (result.failingTileCount - shown) << " more)\n";
-                    break;
+                    abs  = t->channels[c].absAvgDelta;
+                    rel  = t->channels[c].relDelta;
+                    avgA = t->channels[c].avgA;
+                    avgB = t->channels[c].avgB;
                 }
+                if (t->channels[c].absStdDevDelta > dSD)
+                {
+                    dSD = t->channels[c].absStdDevDelta;
+                    sdA = t->channels[c].stdDevA;
+                    sdB = t->channels[c].stdDevB;
+                }
+            }
+            ss << "    FAIL tile(" << t->tileX << "," << t->tileY << "):"
+               << " abs=" << abs
+               << " rel=" << (rel * 100.0f) << "%"
+               << " |dSD|=" << dSD
+               << " avgA=" << avgA
+               << " avgB=" << avgB
+               << " sdA=" << sdA
+               << " sdB=" << sdB
+               << "\n";
+            if (++shown >= 10)
+            {
+                ss << "    ... (" << (result.failingTileCount - shown) << " more)\n";
+                break;
             }
         }
     }

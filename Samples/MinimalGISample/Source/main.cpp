@@ -376,6 +376,9 @@ public:
 
         RTXDI_LightBufferParameters lightBufferParams = m_prepareLightsPass->Process(m_commandList);
 
+        if (m_args.disableGI)
+            m_ui.lightingSettings.enableReSTIRGI = false;
+
         m_lightingPasses->Render(m_commandList,
             *m_restirDIContext,
             *m_restirGIContext,

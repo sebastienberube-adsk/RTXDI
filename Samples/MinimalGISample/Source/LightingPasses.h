@@ -43,11 +43,13 @@ public:
         bool unbiasedMode = false;
         bool enableResampling = true;
         bool enableReSTIRGI = true;
+        bool enableToneMapping = true;
 
         uint32_t numInitialSamples = 8;
         uint32_t numSpatialSamples = 1;
         uint32_t numInitialBRDFSamples = 1;
-        float brdfCutoff = 0.f;
+        float brdfCutoff = 0.0001f;
+        uint32_t numPrimaryInfiniteLightSamples = 2;
     };
 
     LightingPasses(

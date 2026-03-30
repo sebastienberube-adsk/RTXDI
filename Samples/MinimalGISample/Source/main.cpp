@@ -443,12 +443,15 @@ public:
             }
 
             m_toneMappingPass->SimpleRender(m_commandList, toneMappingParams, m_view, toneMappingSource);
-            m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->LdrColor, &m_bindingCache);
         }
         else
         {
-            m_CommonPasses->BlitTexture(m_commandList, framebuffer, toneMappingSource, &m_bindingCache);
+            m_CommonPasses->BlitTexture(m_commandList,
+                m_renderTargets->LdrFramebuffer->GetFramebuffer(m_view),
+                toneMappingSource, &m_bindingCache);
         }
+
+        m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->LdrColor, &m_bindingCache);
         
         m_commandList->close();
         GetDevice()->executeCommandList(m_commandList);
@@ -458,9 +461,7 @@ public:
 
         if ((wantsSave || wantsCompare) && m_renderFrameIndex == m_args.saveFrameIndex)
         {
-            nvrhi::ITexture* backBuffer = (m_toneMappingPass && m_renderTargets->LdrColor)
-                ? m_renderTargets->LdrColor.Get()
-                : framebuffer->getDesc().colorAttachments[0].texture;
+            nvrhi::ITexture* backBuffer = m_renderTargets->LdrColor.Get();
 
             if (wantsSave)
             {

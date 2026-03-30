@@ -14,9 +14,19 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     float3 diffuse = u_DiffuseLighting[pixelPosition].rgb;
     float3 specular = u_SpecularLighting[pixelPosition].rgb;
 
-    float3 color = diffuse * diffuseAlbedo + specular * max(0.01, specularF0) + emissive;
+    float depth = u_GBufferDepth[pixelPosition];
+    float3 color = 0;
 
-    color = basicToneMapping(color, 0.005);
+    if (depth != BACKGROUND_DEPTH)
+    {
+        color = diffuse * diffuseAlbedo + specular * max(0.01, specularF0) + emissive;
+    }
+
+    if (any(isnan(color)))
+        color = float3(0, 0, 1);
+
+    if (g_Const.enableBasicToneMapping)
+        color = basicToneMapping(color, 0.005);
 
     u_HdrColor[pixelPosition] = float4(color, 1.0);
 }

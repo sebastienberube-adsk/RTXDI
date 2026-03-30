@@ -32,11 +32,7 @@ float3 RAB_GetReflectedRadianceForSurface(float3 incomingRadianceLocation, float
         return 0;
 
     float d = Lambert(N, -L);
-    float3 s;
-    if (surface.material.roughness == 0)
-        s = 0;
-    else
-        s = GGX_times_NdotL(V, L, N, max(surface.material.roughness, kMinRoughness), surface.material.specularF0);
+    float3 s = GGX_times_NdotL(V, L, N, max(surface.material.roughness, kMinRoughness), surface.material.specularF0);
 
     return incomingRadiance * (d * surface.material.diffuseAlbedo + s);
 }

@@ -21,6 +21,62 @@ SplitBrdf EvaluateBrdf(RAB_Surface surface, float3 samplePosition)
     return brdf;
 }
 
+#ifdef RTXDI_DIRESERVOIR_HLSLI
+
+bool ShadeSurfaceWithLightSample(
+    inout RTXDI_DIReservoir reservoir,
+    RAB_Surface surface,
+    RAB_LightSample lightSample,
+    bool enableVisibilityReuse,
+    out float3 diffuse,
+    out float3 specular)
+{
+    diffuse = 0;
+    specular = 0;
+
+    if (lightSample.solidAnglePdf <= 0)
+        return false;
+
+    bool needToStore = false;
+    if (g_Const.restirDI.shadingParams.enableFinalVisibility)
+    {
+        float3 visibility = 0;
+        bool visibilityReused = false;
+
+        if (g_Const.restirDI.shadingParams.reuseFinalVisibility && enableVisibilityReuse)
+        {
+            RTXDI_VisibilityReuseParameters rparams;
+            rparams.maxAge = g_Const.restirDI.shadingParams.finalVisibilityMaxAge;
+            rparams.maxDistance = g_Const.restirDI.shadingParams.finalVisibilityMaxDistance;
+
+            visibilityReused = RTXDI_GetDIReservoirVisibility(reservoir, rparams, visibility);
+        }
+
+        if (!visibilityReused)
+        {
+            visibility = GetFinalVisibility(SceneBVH, surface, lightSample.position);
+            RTXDI_StoreVisibilityInDIReservoir(reservoir, visibility, g_Const.restirDI.temporalResamplingParams.discardInvisibleSamples);
+            needToStore = true;
+        }
+
+        lightSample.radiance *= visibility;
+    }
+
+    lightSample.radiance *= RTXDI_GetDIReservoirInvPdf(reservoir) / lightSample.solidAnglePdf;
+
+    if (any(lightSample.radiance > 0))
+    {
+        SplitBrdf brdf = EvaluateBrdf(surface, lightSample.position);
+
+        diffuse = brdf.demodulatedDiffuse * lightSample.radiance;
+        specular = brdf.specular * lightSample.radiance;
+    }
+
+    return needToStore;
+}
+
+#endif // RTXDI_DIRESERVOIR_HLSLI
+
 float3 DemodulateSpecular(float3 surfaceSpecularF0, float3 specular)
 {
     return specular / max(0.01, surfaceSpecularF0);

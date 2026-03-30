@@ -16,9 +16,23 @@
 #include <cxxopts.hpp>
 
 #include <filesystem>
+#include <iostream>
 
 using namespace donut;
 namespace fs = std::filesystem;
+
+std::istream& operator>> (std::istream& is, AntiAliasingMode& mode)
+{
+    std::string token;
+    is >> token;
+    if (token == "OFF" || token == "off" || token == "NONE" || token == "none")
+        mode = AntiAliasingMode::None;
+    else if (token == "ACC" || token == "acc" || token == "ACCUMULATION" || token == "accumulation")
+        mode = AntiAliasingMode::Accumulation;
+    else
+        throw cxxopts::exceptions::parsing("Invalid aa-mode value: " + token);
+    return is;
+}
 
 // ---------------------------------------------------------------------------
 // Command-line processing
@@ -42,6 +56,8 @@ void ProcessCommandLine(int argc, char** argv,
         ("width", "Render width override", value(args.renderWidth))
         ("height", "Render height override", value(args.renderHeight))
         ("disable-gi", "Disable ReSTIR GI (DI only)", value<bool>())
+        ("tone-mapping", "Enable basic tone mapping (default: 1)", value(args.enableToneMapping))
+        ("aa-mode", "Anti-aliasing mode: OFF or ACC (default: OFF)", value(args.aaMode))
         ;
 
     auto result = options.parse(argc, argv);
@@ -61,6 +77,8 @@ void ProcessCommandLine(int argc, char** argv,
     {
         args.disableGI = true;
     }
+
+    
 
     if (args.renderWidth > 0 && args.renderHeight > 0)
     {

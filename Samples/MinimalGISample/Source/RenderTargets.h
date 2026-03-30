@@ -10,7 +10,9 @@
 
 #pragma once
 
+#include <memory>
 #include <donut/core/math/math.h>
+#include <donut/engine/FramebufferFactory.h>
 #include <nvrhi/nvrhi.h>
 
 class RenderTargets
@@ -32,6 +34,10 @@ public:
     nvrhi::TextureHandle DiffuseLighting;
     nvrhi::TextureHandle SpecularLighting;
     nvrhi::TextureHandle HdrColor;
+    nvrhi::TextureHandle AccumulatedColor;
+
+    nvrhi::TextureHandle LdrColor;
+    std::shared_ptr<donut::engine::FramebufferFactory> LdrFramebuffer;
 
     dm::int2 Size;
 

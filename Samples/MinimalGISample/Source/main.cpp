@@ -32,10 +32,12 @@
 #include "RenderTargets.h"
 #include "PrepareLightsPass.h"
 #include "LightingPasses.h"
+#include "AccumulationPass.h"
 #include "RtxdiResources.h"
 #include "SampleScene.h"
 #include "UserInterface.h"
 #include "Testing.h"
+#include <donut/render/ToneMappingPasses.h>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -131,6 +133,7 @@ public:
 
         m_prepareLightsPass = std::make_unique<PrepareLightsPass>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_bindlessLayout);
         m_lightingPasses = std::make_unique<LightingPasses>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_bindlessLayout);
+        m_accumulationPass = std::make_unique<AccumulationPass>(GetDevice(), m_shaderFactory);
 
 
         LoadShaders();
@@ -202,6 +205,7 @@ public:
     {
         m_prepareLightsPass->CreatePipeline();
         m_lightingPasses->CreatePipelines();
+        m_accumulationPass->CreatePipeline();
     }
 
     bool LoadScene(std::shared_ptr<vfs::IFileSystem> fs, const std::filesystem::path& sceneFileName) override 
@@ -254,6 +258,9 @@ public:
             fElapsedTimeSeconds = 1.f / 60.f;
 
         m_camera.Animate(fElapsedTimeSeconds);
+
+        if (m_toneMappingPass)
+            m_toneMappingPass->AdvanceFrame(fElapsedTimeSeconds);
     }
 
     void BackBufferResized(const uint32_t width, const uint32_t height, const uint32_t sampleCount) override
@@ -266,6 +273,8 @@ public:
         m_restirDIContext = nullptr;
         m_restirGIContext = nullptr;
         m_rtxdiResources = nullptr;
+        m_toneMappingPass = nullptr;
+        m_numAccumulatedFrames = 1;
     }
     
     void SetupView(const nvrhi::FramebufferInfoEx& fbinfo, uint effectiveFrameIndex)
@@ -347,6 +356,16 @@ public:
                 m_scene->GetTopLevelAS(),
                 *m_renderTargets,
                 *m_rtxdiResources);
+            m_accumulationPass->CreateBindingSet(*m_renderTargets);
+        }
+
+        if (!m_toneMappingPass && m_args.enableToneMapping == 2)
+        {
+            render::ToneMappingPass::CreateParameters toneMappingParams;
+            m_toneMappingPass = std::make_unique<render::ToneMappingPass>(
+                GetDevice(), m_shaderFactory, m_CommonPasses,
+                m_renderTargets->LdrFramebuffer, m_view, toneMappingParams);
+            m_exposureResetRequired = true;
         }
     }
 
@@ -379,6 +398,8 @@ public:
         if (m_args.disableGI)
             m_ui.lightingSettings.enableReSTIRGI = false;
 
+        m_ui.lightingSettings.enableToneMapping = (m_args.enableToneMapping == 1);
+
         m_lightingPasses->Render(m_commandList,
             *m_restirDIContext,
             *m_restirGIContext,
@@ -386,7 +407,48 @@ public:
             m_ui.lightingSettings,
             lightBufferParams);
 
-        m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->HdrColor, &m_bindingCache);
+        bool useAccumulation = (m_args.aaMode == AntiAliasingMode::Accumulation);
+
+        if (useAccumulation)
+        {
+            bool cameraIsStatic = m_previousViewValid &&
+                m_view.GetViewMatrix() == m_viewPrevious.GetViewMatrix();
+            if (cameraIsStatic)
+                m_numAccumulatedFrames += 1;
+            else
+                m_numAccumulatedFrames = 1;
+
+            float accumulationWeight = 1.f / (float)m_numAccumulatedFrames;
+            m_accumulationPass->Render(m_commandList, m_view, m_view, accumulationWeight);
+        }
+
+        nvrhi::ITexture* toneMappingSource = useAccumulation
+            ? m_renderTargets->AccumulatedColor.Get()
+            : m_renderTargets->HdrColor.Get();
+
+        if (m_toneMappingPass)
+        {
+            render::ToneMappingParameters toneMappingParams;
+            toneMappingParams.minAdaptedLuminance = 0.002f;
+            toneMappingParams.maxAdaptedLuminance = 0.2f;
+            toneMappingParams.exposureBias = -1.0f;
+            toneMappingParams.eyeAdaptationSpeedUp = 2.0f;
+            toneMappingParams.eyeAdaptationSpeedDown = 1.0f;
+
+            if (m_exposureResetRequired)
+            {
+                toneMappingParams.eyeAdaptationSpeedUp = 0.f;
+                toneMappingParams.eyeAdaptationSpeedDown = 0.f;
+                m_exposureResetRequired = false;
+            }
+
+            m_toneMappingPass->SimpleRender(m_commandList, toneMappingParams, m_view, toneMappingSource);
+            m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->LdrColor, &m_bindingCache);
+        }
+        else
+        {
+            m_CommonPasses->BlitTexture(m_commandList, framebuffer, toneMappingSource, &m_bindingCache);
+        }
         
         m_commandList->close();
         GetDevice()->executeCommandList(m_commandList);
@@ -396,7 +458,9 @@ public:
 
         if ((wantsSave || wantsCompare) && m_renderFrameIndex == m_args.saveFrameIndex)
         {
-            nvrhi::ITexture* backBuffer = framebuffer->getDesc().colorAttachments[0].texture;
+            nvrhi::ITexture* backBuffer = (m_toneMappingPass && m_renderTargets->LdrColor)
+                ? m_renderTargets->LdrColor.Get()
+                : framebuffer->getDesc().colorAttachments[0].texture;
 
             if (wantsSave)
             {
@@ -474,6 +538,7 @@ public:
         m_renderTargets->NextFrame();
 
         m_viewPrevious = m_view;
+        m_previousViewValid = true;
         m_renderFrameIndex++;
     }
 
@@ -497,11 +562,17 @@ private:
     std::unique_ptr<PrepareLightsPass> m_prepareLightsPass;
     std::unique_ptr<LightingPasses> m_lightingPasses;
     std::unique_ptr<RtxdiResources> m_rtxdiResources;
+    std::unique_ptr<AccumulationPass> m_accumulationPass;
+    std::unique_ptr<donut::render::ToneMappingPass> m_toneMappingPass;
 
     UIData& m_ui;
     CommandLineArguments m_args;
     bool m_cameraInitialized = false;
     uint32_t m_renderFrameIndex = 0;
+    bool m_exposureResetRequired = false;
+    bool m_previousViewValid = false;
+    uint32_t m_numAccumulatedFrames = 1;
+    std::shared_ptr<engine::TextureCache> m_TextureCache;
 };
 
 #if defined(_WIN32)

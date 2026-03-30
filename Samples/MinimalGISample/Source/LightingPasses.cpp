@@ -188,6 +188,7 @@ void LightingPasses::Render(
     ReSTIRDI_InitialSamplingParameters initialParams = context.GetInitialSamplingParameters();
     initialParams.numPrimaryLocalLightSamples = localSettings.numInitialSamples;
     initialParams.numPrimaryBrdfSamples = localSettings.numInitialBRDFSamples;
+    initialParams.numPrimaryInfiniteLightSamples = localSettings.numPrimaryInfiniteLightSamples;
     initialParams.brdfCutoff = localSettings.brdfCutoff;
     initialParams.enableInitialVisibility = true;
     context.SetInitialSamplingParameters(initialParams);
@@ -195,7 +196,8 @@ void LightingPasses::Render(
     ReSTIRDI_TemporalResamplingParameters temporalParams = context.GetTemporalResamplingParameters();
     temporalParams.temporalBiasCorrection = localSettings.unbiasedMode
         ? ReSTIRDI_TemporalBiasCorrectionMode::Raytraced
-        : ReSTIRDI_TemporalBiasCorrectionMode::Basic;
+        : ReSTIRDI_TemporalBiasCorrectionMode::Raytraced;
+    temporalParams.discardInvisibleSamples = true;
     context.SetTemporalResamplingParameters(temporalParams);
 
     ReSTIRDI_SpatialResamplingParameters spatialParams = context.GetSpatialResamplingParameters();
@@ -229,6 +231,7 @@ void LightingPasses::Render(
     constants.enableBrdfIndirect = localSettings.enableReSTIRGI ? 1 : 0;
 
     constants.enableResampling = localSettings.enableResampling;
+    constants.enableBasicToneMapping = localSettings.enableToneMapping ? 1 : 0;
 
     commandList->writeBuffer(m_constantBuffer, &constants, sizeof(constants));
 

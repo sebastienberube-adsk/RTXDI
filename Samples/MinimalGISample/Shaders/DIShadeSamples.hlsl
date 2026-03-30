@@ -3,9 +3,10 @@
 #define RTXDI_ENABLE_PRESAMPLING 0
 
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"
-#include "ShadingHelpers.hlsli"
 
 #include <Rtxdi/DI/Reservoir.hlsli>
+
+#include "ShadingHelpers.hlsli"
 
 [numthreads(RTXDI_SCREEN_SPACE_GROUP_SIZE, RTXDI_SCREEN_SPACE_GROUP_SIZE, 1)]
 void main(uint2 pixelPosition : SV_DispatchThreadID)
@@ -24,32 +25,17 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         RAB_LightSample lightSample = RAB_SamplePolymorphicLight(lightInfo,
             surface, RTXDI_GetDIReservoirSampleUV(reservoir));
 
-        if (lightSample.solidAnglePdf > 0)
+        bool needToStore = ShadeSurfaceWithLightSample(reservoir, surface, lightSample,
+            /* enableVisibilityReuse = */ true, diffuse, specular);
+
+        specular = DemodulateSpecular(surface.material.specularF0, specular);
+
+        if (needToStore)
         {
-            float3 L = normalize(lightSample.position - surface.worldPos);
-            if (dot(L, surface.geoNormal) > 0)
-            {
-                SplitBrdf brdf = EvaluateBrdf(surface, lightSample.position);
-
-                float3 radiance = lightSample.radiance * RTXDI_GetDIReservoirInvPdf(reservoir)
-                                / lightSample.solidAnglePdf;
-
-                bool visibility = RAB_GetConservativeVisibility(surface, lightSample);
-                if (!visibility)
-                {
-                    radiance = 0;
-                    RTXDI_StoreVisibilityInDIReservoir(reservoir, 0, true);
-                    RTXDI_StoreDIReservoir(reservoir, g_Const.restirDI.reservoirBufferParams,
-                        pixelPosition, g_Const.restirDI.bufferIndices.shadingInputBufferIndex);
-                }
-
-                diffuse = brdf.demodulatedDiffuse * radiance;
-                specular = brdf.specular * radiance;
-            }
+            RTXDI_StoreDIReservoir(reservoir, g_Const.restirDI.reservoirBufferParams,
+                pixelPosition, g_Const.restirDI.bufferIndices.shadingInputBufferIndex);
         }
     }
-
-    specular = DemodulateSpecular(surface.material.specularF0, specular);
 
     StoreShadingOutput(pixelPosition, diffuse, specular, true);
 }

@@ -258,8 +258,11 @@ TEST(SampleImageTests, MinimalGI_vs_Intermediate_NoDI)
     fs::path outA = GetOutputDir() / "MinimalGISample_DI.bmp";
     fs::path outB = GetOutputDir() / "IntermediateSample_NoDI.bmp";
 
-    ASSERT_EQ(RunSample("MinimalGISample", "--disable-gi", outA, 64), 0) << "MinimalGISample failed to run";
-    ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode NONE --aa-mode ACC", outB, 128), 0)
+    ASSERT_EQ(RunSample("MinimalGISample",
+        "--disable-gi --aa-mode ACC --tone-mapping 2", outA, 128), 0)
+        << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample",
+        "--indirect-mode NONE --aa-mode ACC --rasterize-gbuffer 0", outB, 128), 0)
         << "IntermediateSample failed to run";
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (no GI)"));
 }

@@ -78,7 +78,7 @@ struct ResamplingConstants
     uint frameIndex;
     uint enableResampling;
     uint enableBrdfIndirect;
-    uint pad;
+    uint enableBasicToneMapping;
 };
 
 // See TriangleLight.hlsli for encoding format
@@ -92,6 +92,15 @@ struct RAB_LightInfo
     uint2 radiance; // fp16x4
     uint direction1; // oct-encoded
     uint direction2; // oct-encoded
+};
+
+struct AccumulationConstants
+{
+    float2 outputSize;
+    float2 inputSize;
+    float2 inputTextureSizeInv;
+    float2 pixelOffset;
+    float blendFactor;
 };
 
 #endif // SHADER_PARAMETERS_H

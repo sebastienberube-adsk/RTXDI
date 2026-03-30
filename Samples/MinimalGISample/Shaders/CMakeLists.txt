@@ -31,6 +31,7 @@ set(shaders
    DITemporalResampling.hlsl
    DISpatialResampling.hlsl
    DIShadeSamples.hlsl
+   AccumulationPass.hlsl
    SceneGeometry.hlsli
    ShaderParameters.h
    TriangleLight.hlsli)

@@ -78,6 +78,24 @@ RenderTargets::RenderTargets(nvrhi::IDevice* device, int2 size)
     desc.format = nvrhi::Format::RGBA16_FLOAT;
     desc.debugName = "HdrColor";
     HdrColor = device->createTexture(desc);
+
+    desc.format = nvrhi::Format::RGBA32_FLOAT;
+    desc.debugName = "AccumulatedColor";
+    AccumulatedColor = device->createTexture(desc);
+
+    nvrhi::TextureDesc ldrDesc;
+    ldrDesc.width = size.x;
+    ldrDesc.height = size.y;
+    ldrDesc.keepInitialState = true;
+    ldrDesc.isRenderTarget = true;
+    ldrDesc.isUAV = false;
+    ldrDesc.initialState = nvrhi::ResourceStates::RenderTarget;
+    ldrDesc.format = nvrhi::Format::SRGBA8_UNORM;
+    ldrDesc.debugName = "LdrColor";
+    LdrColor = device->createTexture(ldrDesc);
+
+    LdrFramebuffer = std::make_shared<engine::FramebufferFactory>(device);
+    LdrFramebuffer->RenderTargets = { LdrColor };
 }
 
 bool RenderTargets::IsUpdateRequired(int2 size)

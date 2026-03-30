@@ -24,6 +24,12 @@ namespace donut::app {
 
 struct UIData;
 
+enum class AntiAliasingMode
+{
+    None,
+    Accumulation
+};
+
 struct CommandLineArguments
 {
     nvrhi::GraphicsAPI graphicsApi = nvrhi::GraphicsAPI::D3D12;
@@ -34,6 +40,8 @@ struct CommandLineArguments
     int renderWidth = 0;
     int renderHeight = 0;
     bool disableGI = false;
+    int enableToneMapping = 1;
+    AntiAliasingMode aaMode = AntiAliasingMode::None;
 };
 
 void ProcessCommandLine(int argc, char** argv,

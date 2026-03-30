@@ -262,7 +262,7 @@ TEST(SampleImageTests, MinimalGI_vs_Intermediate_NoDI)
         "--disable-gi --aa-mode ACC --tone-mapping 2", outA, 128), 0)
         << "MinimalGISample failed to run";
     ASSERT_EQ(RunSample("IntermediateSample",
-        "--indirect-mode NONE --aa-mode ACC --rasterize-gbuffer 0", outB, 128), 0)
+        "--indirect-mode NONE --aa-mode ACC", outB, 128), 0)
         << "IntermediateSample failed to run";
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (no GI)"));
 }

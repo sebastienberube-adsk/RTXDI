@@ -573,7 +573,6 @@ private:
     bool m_exposureResetRequired = false;
     bool m_previousViewValid = false;
     uint32_t m_numAccumulatedFrames = 1;
-    std::shared_ptr<engine::TextureCache> m_TextureCache;
 };
 
 #if defined(_WIN32)

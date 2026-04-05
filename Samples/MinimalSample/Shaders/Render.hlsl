@@ -206,7 +206,9 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     u_GBufferDiffuseAlbedo[pixelPosition] = Pack_R11G11B10_UFLOAT(primary.surface.material.diffuseAlbedo);
     u_GBufferSpecularRough[pixelPosition] = Pack_R8G8B8A8_Gamma_UFLOAT(float4(primary.surface.material.specularF0, primary.surface.material.roughness));
     
-
+    // This empty reservoir is the accumulator. The accumulation can only be done in "unfinalized" form.
+    // Note: When calling RTXDI_CombineDIReservoirs, the accumulator reservoir (1st arg) should be in "unfinalized" form,
+    //       and the new reservoir (2nd arg) should be in finalized form.
     RTXDI_DIReservoir reservoir = RTXDI_EmptyDIReservoir();
 
     if (RAB_IsSurfaceValid(primary.surface))
@@ -276,6 +278,10 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         RTXDI_DIReservoir localReservoir = RTXDI_SampleLocalLights(rng, rng, primary.surface,
             sampleParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM, lightBufferParams.localLightBufferRegion, lightSample);
 
+        // This is seemingly necessary to "undo" the finalization step done inside RTXDI_SampleLocalLights,
+        // which divides the reservoir weightSum by the number of samples considered (M).
+        // So this step is essentially converting the reservoir back to "unfinalized" form
+        // into the accumulator reservoir.
         RTXDI_CombineDIReservoirs(reservoir, localReservoir, 0.5, localReservoir.targetPdf);
 
         // Resample BRDF samples.
@@ -294,9 +300,12 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         //|  + Great for specular/glossy surfaces                               |
         //|  - Expensive (requires ray tracing per sample)                      |
         //-----------------------------------------------------------------------
+        // Note: The returned reservoir is already in "finalized" form, meaning the weightSum is already divided by the number of samples (M).
         RTXDI_DIReservoir brdfReservoir = RTXDI_SampleBrdf(rng, primary.surface, sampleParams, lightBufferParams, brdfSample);
-
         
+        // Note: reservoir is the accumulator reservoir (unfinalized), brdfReservoir is the new reservoir (finalized).
+        // This follows the same pattern as the combination after local light sampling, where we combine the finalized BRD
+        // reservoir with the accumulator reservoir.
         bool selectBrdf = RTXDI_CombineDIReservoirs(reservoir, brdfReservoir, RAB_GetNextRandom(rng), brdfReservoir.targetPdf);
         if (selectBrdf)
         {

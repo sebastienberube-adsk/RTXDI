@@ -88,7 +88,7 @@ RAB_Surface RAB_GetGBufferSurface(int2 pixelPosition, bool previousFrame)
     surface.material.roughness = specularRough.a;
     surface.material.specularF0 = specularRough.rgb;
     surface.worldPos = viewDepthToWorldPos(view, pixelPosition, surface.viewDepth);
-    surface.viewDir = normalize(g_Const.view.cameraDirectionOrPosition.xyz - surface.worldPos);
+    surface.viewDir = normalize(g_Const.prevView.cameraDirectionOrPosition.xyz - surface.worldPos);
     surface.diffuseProbability = getSurfaceDiffuseProbability(surface);
 
     return surface;

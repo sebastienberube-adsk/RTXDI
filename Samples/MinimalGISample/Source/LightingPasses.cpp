@@ -180,10 +180,12 @@ void LightingPasses::Render(
     temporalParams.temporalBiasCorrection = localSettings.unbiasedMode
         ? ReSTIRDI_TemporalBiasCorrectionMode::Raytraced
         : ReSTIRDI_TemporalBiasCorrectionMode::Basic;
+    temporalParams.discardInvisibleSamples = true;
     context.SetTemporalResamplingParameters(temporalParams);
 
     auto spatialParams = context.GetSpatialResamplingParameters();
     spatialParams.numSpatialSamples = localSettings.numSpatialSamples;
+    spatialParams.numDisocclusionBoostSamples = 0;
     context.SetSpatialResamplingParameters(spatialParams);
 
     ResamplingConstants constants = {};

@@ -25,6 +25,7 @@ set(shaders
    GBufferHelpers.hlsli
    HelperFunctions.hlsli
    DIGenerateInitialSamples.hlsl
+   DITemporalResampling.hlsl
    GBufferPass.hlsl
    PrepareLights.hlsl
    PrimaryRays.hlsli

@@ -133,6 +133,7 @@ void LightingPasses::CreatePipeline()
 {
     m_GBufferPassShader = m_shaderFactory->CreateShader("app/GBufferPass.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_DIInitialSamplingShader = m_shaderFactory->CreateShader("app/DIGenerateInitialSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_DITemporalResamplingShader = m_shaderFactory->CreateShader("app/DITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_RenderShader = m_shaderFactory->CreateShader("app/Render.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     nvrhi::ComputePipelineDesc pipelineDesc;
@@ -143,6 +144,9 @@ void LightingPasses::CreatePipeline()
 
     pipelineDesc.CS = m_DIInitialSamplingShader;
     m_DIInitialSamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_DITemporalResamplingShader;
+    m_DITemporalResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
 
     pipelineDesc.CS = m_RenderShader;
     m_RenderPipeline = m_device->createComputePipeline(pipelineDesc);
@@ -157,7 +161,7 @@ void LightingPasses::Render(
     const RTXDI_LightBufferParameters& lightBufferParams)
 {
     context.SetResamplingMode(localSettings.enableResampling
-        ? rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal
+        ? rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial
         : rtxdi::ReSTIRDI_ResamplingMode::None);
 
     auto initialSamplingParams = context.GetInitialSamplingParameters();
@@ -210,6 +214,14 @@ void LightingPasses::Render(
 
     commandList->beginMarker("DIGenerateInitialSamples");
     state.pipeline = m_DIInitialSamplingPipeline;
+    commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
+    commandList->endMarker();
+
+    nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
+
+    commandList->beginMarker("DITemporalResampling");
+    state.pipeline = m_DITemporalResamplingPipeline;
     commandList->setComputeState(state);
     commandList->dispatch(dispatchWidth, dispatchHeight);
     commandList->endMarker();

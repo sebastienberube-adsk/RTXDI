@@ -14,77 +14,71 @@
 
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"
 
-#include <Rtxdi/DI/SpatioTemporalResampling.hlsli>
+#include <Rtxdi/DI/SpatialResampling.hlsli>
 
 [numthreads(RTXDI_SCREEN_SPACE_GROUP_SIZE, RTXDI_SCREEN_SPACE_GROUP_SIZE, 1)]
 void main(uint2 pixelPosition : SV_DispatchThreadID)
 {
+    const RTXDI_RuntimeParameters params = g_Const.runtimeParams;
+
     RAB_Surface surface = RAB_GetGBufferSurface(pixelPosition, false);
 
-    float3 motionVector = u_MotionVectors[pixelPosition].xyz;
-    float3 emissiveColor = u_Emissive[pixelPosition].rgb;
-
-    RTXDI_DIReservoir reservoir = RTXDI_LoadDIReservoir(g_Const.restirDI.reservoirBufferParams,
-        pixelPosition, g_Const.restirDI.bufferIndices.initialSamplingOutputBufferIndex);
+    RTXDI_DIReservoir reservoir = RTXDI_EmptyDIReservoir();
 
     if (RAB_IsSurfaceValid(surface))
     {
-        RAB_RandomSamplerState rng = RAB_InitRandomSampler(pixelPosition, 2);
+        RAB_RandomSamplerState rng = RAB_InitRandomSampler(pixelPosition, 3);
 
-        RAB_LightSample lightSample = RAB_EmptyLightSample();
-        if (RTXDI_IsValidDIReservoir(reservoir))
-        {
-            RAB_LightInfo lightInfo = RAB_LoadLightInfo(RTXDI_GetDIReservoirLightIndex(reservoir), false);
-            lightSample = RAB_SamplePolymorphicLight(lightInfo, surface, RTXDI_GetDIReservoirSampleUV(reservoir));
-        }
+        reservoir = RTXDI_LoadDIReservoir(g_Const.restirDI.reservoirBufferParams,
+            pixelPosition, g_Const.restirDI.bufferIndices.spatialResamplingInputBufferIndex);
 
         if (g_Const.enableResampling)
         {
-            RTXDI_DISpatioTemporalResamplingParameters stparams;
-            stparams.screenSpaceMotion = motionVector;
-            stparams.sourceBufferIndex = g_Const.restirDI.bufferIndices.temporalResamplingInputBufferIndex;
-            stparams.maxHistoryLength = g_Const.restirDI.temporalResamplingParams.maxHistoryLength;
-            stparams.biasCorrectionMode = g_Const.restirDI.temporalResamplingParams.temporalBiasCorrection;
-            stparams.depthThreshold = g_Const.restirDI.temporalResamplingParams.temporalDepthThreshold;
-            stparams.normalThreshold = g_Const.restirDI.temporalResamplingParams.temporalNormalThreshold;
-            stparams.numSamples = g_Const.restirDI.spatialResamplingParams.numSpatialSamples + 1;
-            stparams.numDisocclusionBoostSamples = g_Const.restirDI.spatialResamplingParams.numDisocclusionBoostSamples;
-            stparams.samplingRadius = g_Const.restirDI.spatialResamplingParams.spatialSamplingRadius;
-            stparams.enableVisibilityShortcut = g_Const.restirDI.temporalResamplingParams.discardInvisibleSamples;
-            stparams.enablePermutationSampling = true;
-            stparams.uniformRandomNumber = g_Const.frameIndex;
-            stparams.discountNaiveSamples = false;
+            RTXDI_DISpatialResamplingParameters sparams;
+            sparams.sourceBufferIndex = g_Const.restirDI.bufferIndices.spatialResamplingInputBufferIndex;
+            sparams.numSamples = g_Const.restirDI.spatialResamplingParams.numSpatialSamples;
+            sparams.numDisocclusionBoostSamples = g_Const.restirDI.spatialResamplingParams.numDisocclusionBoostSamples;
+            sparams.targetHistoryLength = g_Const.restirDI.temporalResamplingParams.maxHistoryLength;
+            sparams.biasCorrectionMode = g_Const.restirDI.spatialResamplingParams.spatialBiasCorrection;
+            sparams.samplingRadius = g_Const.restirDI.spatialResamplingParams.spatialSamplingRadius;
+            sparams.depthThreshold = g_Const.restirDI.spatialResamplingParams.spatialDepthThreshold;
+            sparams.normalThreshold = g_Const.restirDI.spatialResamplingParams.spatialNormalThreshold;
+            sparams.enableMaterialSimilarityTest = true;
+            sparams.discountNaiveSamples = g_Const.restirDI.spatialResamplingParams.discountNaiveSamples;
 
-            int2 temporalSamplePixelPos = -1;
-
-            reservoir = RTXDI_DISpatioTemporalResampling(pixelPosition, surface, reservoir,
-                    rng, g_Const.runtimeParams, g_Const.restirDI.reservoirBufferParams, stparams, temporalSamplePixelPos, lightSample);
+            RAB_LightSample lightSample = (RAB_LightSample)0;
+            reservoir = RTXDI_DISpatialResampling(pixelPosition, surface, reservoir,
+                rng, params, g_Const.restirDI.reservoirBufferParams, sparams, lightSample);
         }
-
-        float3 shadingOutput = 0;
-
-        if (RTXDI_IsValidDIReservoir(reservoir))
-        {
-            shadingOutput = ShadeSurfaceWithLightSample(lightSample, surface)
-                          * RTXDI_GetDIReservoirInvPdf(reservoir);
-
-            bool visibility = RAB_GetConservativeVisibility(surface, lightSample);
-            if (!visibility)
-            {
-                shadingOutput = 0;
-                RTXDI_StoreVisibilityInDIReservoir(reservoir, 0, true);
-            }
-        }
-
-        shadingOutput += emissiveColor;
-        shadingOutput = basicToneMapping(shadingOutput, 0.005);
-
-        u_ShadingOutput[pixelPosition] = float4(shadingOutput, 0);
     }
-    else
+
+    RTXDI_StoreDIReservoir(reservoir, g_Const.restirDI.reservoirBufferParams,
+        pixelPosition, g_Const.restirDI.bufferIndices.spatialResamplingOutputBufferIndex);
+
+    float3 shadingOutput = 0;
+
+    if (RAB_IsSurfaceValid(surface) && RTXDI_IsValidDIReservoir(reservoir))
     {
-        u_ShadingOutput[pixelPosition] = 0;
+        RAB_LightInfo lightInfo = RAB_LoadLightInfo(RTXDI_GetDIReservoirLightIndex(reservoir), false);
+        RAB_LightSample lightSample = RAB_SamplePolymorphicLight(lightInfo,
+            surface, RTXDI_GetDIReservoirSampleUV(reservoir));
+
+        shadingOutput = ShadeSurfaceWithLightSample(lightSample, surface)
+                      * RTXDI_GetDIReservoirInvPdf(reservoir);
+
+        bool visibility = RAB_GetConservativeVisibility(surface, lightSample);
+
+        if (!visibility)
+        {
+            shadingOutput = 0;
+            RTXDI_StoreVisibilityInDIReservoir(reservoir, 0, true);
+            RTXDI_StoreDIReservoir(reservoir, g_Const.restirDI.reservoirBufferParams,
+                pixelPosition, g_Const.restirDI.bufferIndices.shadingInputBufferIndex);
+        }
     }
 
-    RTXDI_StoreDIReservoir(reservoir, g_Const.restirDI.reservoirBufferParams, pixelPosition, g_Const.restirDI.bufferIndices.shadingInputBufferIndex);
+    shadingOutput += u_Emissive[pixelPosition].rgb;
+    shadingOutput = basicToneMapping(shadingOutput, 0.005);
+
+    u_ShadingOutput[pixelPosition] = float4(shadingOutput, 0);
 }

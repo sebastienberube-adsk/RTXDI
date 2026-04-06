@@ -34,7 +34,7 @@ class RtxdiResources;
 class EnvironmentLight;
 struct ResamplingConstants;
 
-class RenderPass
+class LightingPasses
 {
 public:
     struct Settings
@@ -48,7 +48,7 @@ public:
         float brdfCutoff = 0.f;
     };
 
-    RenderPass(
+    LightingPasses(
         nvrhi::IDevice* device,
         std::shared_ptr<donut::engine::ShaderFactory> shaderFactory,
         std::shared_ptr<donut::engine::CommonRenderPasses> commonPasses,
@@ -75,8 +75,10 @@ public:
 private:
     nvrhi::DeviceHandle m_device;
 
-    nvrhi::ShaderHandle m_computeShader;
-    nvrhi::ComputePipelineHandle m_computePipeline;
+    nvrhi::ShaderHandle m_GBufferPassShader;
+    nvrhi::ComputePipelineHandle m_GBufferPassPipeline;
+    nvrhi::ShaderHandle m_RenderShader;
+    nvrhi::ComputePipelineHandle m_RenderPipeline;
 
     nvrhi::BindingLayoutHandle m_bindingLayout;
     nvrhi::BindingLayoutHandle m_bindlessLayout;

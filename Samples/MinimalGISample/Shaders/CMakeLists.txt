@@ -24,6 +24,7 @@ set(shaders
    RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli
    GBufferHelpers.hlsli
    HelperFunctions.hlsli
+   GBufferPass.hlsl
    PrepareLights.hlsl
    PrimaryRays.hlsli
    Render.hlsl

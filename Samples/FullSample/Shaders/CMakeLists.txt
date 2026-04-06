@@ -1,6 +1,13 @@
 
 include("${DONUT_PATH}/compileshaders.cmake")
 
+option(SHADER_DEBUG_INFO "Enable shader debug information (PDB generation and disable optimizations)" OFF)
+if(SHADER_DEBUG_INFO)
+    set(SHADER_DEBUG_OPTIONS --PDB -O0)
+else()
+    set(SHADER_DEBUG_OPTIONS "")
+endif()
+
 set(shaders
    DebugViz/NDirOctUNorm32Viz.hlsl
    DebugViz/PackedR11G11B10UFloatViz.hlsl
@@ -97,7 +104,8 @@ if (DONUT_WITH_DX12)
       --relaxedInclude "../Types.h"
       ${NRD_OPTIONS}
       ${USE_API_OPTION}
-      --compiler ${DXC_PATH})
+      --compiler ${DXC_PATH}
+      ${SHADER_DEBUG_OPTIONS})
 
    add_custom_command(TARGET ${shaders_target} PRE_BUILD
                      COMMAND ShaderMake
@@ -120,7 +128,8 @@ if (DONUT_WITH_VULKAN)
       ${USE_API_OPTION}
       ${NVRHI_DEFAULT_VK_REGISTER_OFFSETS}
       -D SPIRV
-      --compiler ${DXC_SPIRV_PATH})
+      --compiler ${DXC_SPIRV_PATH}
+      ${SHADER_DEBUG_OPTIONS})
 
    add_custom_command(TARGET ${shaders_target} PRE_BUILD
                      COMMAND ShaderMake

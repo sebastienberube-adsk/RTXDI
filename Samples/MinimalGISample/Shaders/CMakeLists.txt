@@ -36,6 +36,7 @@ set(shaders
    ShadeSecondarySurfaces.hlsl
    GITemporalResampling.hlsl
    GISpatialResampling.hlsl
+   GIFinalShading.hlsl
    Compositing.hlsl
    PrimaryRays.hlsli
    SceneGeometry.hlsli

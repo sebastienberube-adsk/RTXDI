@@ -153,6 +153,7 @@ void LightingPasses::CreatePipeline()
     m_shadeSecondarySurfacesShader = m_shaderFactory->CreateShader("app/ShadeSecondarySurfaces.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_giTemporalResamplingShader = m_shaderFactory->CreateShader("app/GITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_giSpatialResamplingShader = m_shaderFactory->CreateShader("app/GISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_giFinalShadingShader = m_shaderFactory->CreateShader("app/GIFinalShading.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_compositingShader = m_shaderFactory->CreateShader("app/Compositing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     nvrhi::ComputePipelineDesc pipelineDesc;
@@ -187,6 +188,9 @@ void LightingPasses::CreatePipeline()
 
     pipelineDesc.CS = m_giSpatialResamplingShader;
     m_giSpatialResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_giFinalShadingShader;
+    m_giFinalShadingPipeline = m_device->createComputePipeline(pipelineDesc);
 
     pipelineDesc.CS = m_compositingShader;
     m_compositingPipeline = m_device->createComputePipeline(pipelineDesc);
@@ -353,6 +357,15 @@ void LightingPasses::Render(
 
         commandList->beginMarker("GISpatialResampling");
         state.pipeline = m_giSpatialResamplingPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+
+        nvrhi::utils::BufferUavBarrier(commandList, m_giReservoirBuffer);
+        nvrhi::utils::BufferUavBarrier(commandList, m_secondaryGBuffer);
+
+        commandList->beginMarker("GIFinalShading");
+        state.pipeline = m_giFinalShadingPipeline;
         commandList->setComputeState(state);
         commandList->dispatch(dispatchWidth, dispatchHeight);
         commandList->endMarker();

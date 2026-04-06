@@ -24,13 +24,13 @@ set(shaders
    RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli
    GBufferHelpers.hlsli
    HelperFunctions.hlsli
-   DIGenerateInitialSamples.hlsl
-   DISpatialResampling.hlsl
-   DITemporalResampling.hlsl
-   GBufferPass.hlsl
    PrepareLights.hlsl
-   DIShadeSamples.hlsl
    PrimaryRays.hlsli
+   GBufferPass.hlsl
+   DIGenerateInitialSamples.hlsl
+   DITemporalResampling.hlsl
+   DISpatialResampling.hlsl
+   DIShadeSamples.hlsl
    SceneGeometry.hlsli
    ShaderParameters.h
    TriangleLight.hlsli)

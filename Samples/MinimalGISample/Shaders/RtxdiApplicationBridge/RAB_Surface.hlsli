@@ -6,7 +6,6 @@
 #include "RAB_RandomSamplerState.hlsli"
 #include "RAB_Material.hlsli"
 
-// A surface with enough information to evaluate BRDFs
 struct RAB_Surface
 {
     float3 worldPos;
@@ -117,9 +116,6 @@ RAB_Surface RAB_GetGBufferSurface(int2 pixelPosition, bool previousFrame)
 
 float3 worldToTangent(RAB_Surface surface, float3 w)
 {
-    // reconstruct tangent frame based off worldspace normal
-    // this is ok for isotropic BRDFs
-    // for anisotropic BRDFs, we need a user defined tangent
     float3 tangent;
     float3 bitangent;
     ConstructONB(surface.normal, tangent, bitangent);
@@ -129,9 +125,6 @@ float3 worldToTangent(RAB_Surface surface, float3 w)
 
 float3 tangentToWorld(RAB_Surface surface, float3 h)
 {
-    // reconstruct tangent frame based off worldspace normal
-    // this is ok for isotropic BRDFs
-    // for anisotropic BRDFs, we need a user defined tangent
     float3 tangent;
     float3 bitangent;
     ConstructONB(surface.normal, tangent, bitangent);
@@ -139,8 +132,6 @@ float3 tangentToWorld(RAB_Surface surface, float3 h)
     return bitangent * h.x + tangent * h.y + surface.normal * h.z;
 }
 
-// Output an importanced sampled reflection direction from the BRDF given the view
-// Return true if the returned direction is above the surface
 bool RAB_GetSurfaceBrdfSample(RAB_Surface surface, inout RAB_RandomSamplerState rng, out float3 dir)
 {
     float3 rand;
@@ -162,7 +153,6 @@ bool RAB_GetSurfaceBrdfSample(RAB_Surface surface, inout RAB_RandomSamplerState 
     return dot(surface.normal, dir) > 0.f;
 }
 
-// Return PDF wrt solid angle for the BRDF in the given dir
 float RAB_GetSurfaceBrdfPdf(RAB_Surface surface, float3 dir)
 {
     float cosTheta = saturate(dot(surface.normal, dir));

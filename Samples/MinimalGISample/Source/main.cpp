@@ -200,7 +200,7 @@ public:
     void LoadShaders() const
     {
         m_prepareLightsPass->CreatePipeline();
-        m_lightingPasses->CreatePipeline();
+        m_lightingPasses->CreatePipelines();
     }
 
     bool LoadScene(std::shared_ptr<vfs::IFileSystem> fs, const std::filesystem::path& sceneFileName) override 

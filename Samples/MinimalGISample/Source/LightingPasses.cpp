@@ -144,6 +144,7 @@ void LightingPasses::CreatePipelines()
     m_initialSamplingShader = m_shaderFactory->CreateShader("app/DIGenerateInitialSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_temporalResamplingShader = m_shaderFactory->CreateShader("app/DITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_spatialResamplingShader = m_shaderFactory->CreateShader("app/DISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_fusedResamplingShader = m_shaderFactory->CreateShader("app/DIFusedResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_shadeSamplesShader = m_shaderFactory->CreateShader("app/DIShadeSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_brdfRayTracingShader = m_shaderFactory->CreateShader("app/BrdfRayTracing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_shadeSecondarySurfacesShader = m_shaderFactory->CreateShader("app/ShadeSecondarySurfaces.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
@@ -163,6 +164,7 @@ void LightingPasses::CreatePipelines()
     m_initialSamplingPipeline = createPipeline(m_initialSamplingShader);
     m_temporalResamplingPipeline = createPipeline(m_temporalResamplingShader);
     m_spatialResamplingPipeline = createPipeline(m_spatialResamplingShader);
+    m_fusedResamplingPipeline = createPipeline(m_fusedResamplingShader);
     m_shadeSamplesPipeline = createPipeline(m_shadeSamplesShader);
     m_brdfRayTracingPipeline = createPipeline(m_brdfRayTracingShader);
     m_shadeSecondarySurfacesPipeline = createPipeline(m_shadeSecondarySurfacesShader);
@@ -181,9 +183,7 @@ void LightingPasses::Render(
     const Settings& localSettings,
     const RTXDI_LightBufferParameters& lightBufferParams)
 {
-    context.SetResamplingMode(localSettings.enableResampling
-        ? rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial
-        : rtxdi::ReSTIRDI_ResamplingMode::None);
+    context.SetResamplingMode(localSettings.resamplingMode);
 
     ReSTIRDI_InitialSamplingParameters initialParams = context.GetInitialSamplingParameters();
     initialParams.numPrimaryLocalLightSamples = localSettings.numInitialSamples;
@@ -230,7 +230,7 @@ void LightingPasses::Render(
     constants.brdfPT.enableReSTIRGI = localSettings.enableReSTIRGI ? 1 : 0;
     constants.enableBrdfIndirect = localSettings.enableReSTIRGI ? 1 : 0;
 
-    constants.enableResampling = localSettings.enableResampling;
+    constants.enableResampling = (localSettings.resamplingMode != rtxdi::ReSTIRDI_ResamplingMode::None);
     constants.enableBasicToneMapping = localSettings.enableToneMapping ? 1 : 0;
 
     commandList->writeBuffer(m_constantBuffer, &constants, sizeof(constants));
@@ -248,47 +248,60 @@ void LightingPasses::Render(
     commandList->dispatch(dispatchWidth, dispatchHeight);
     commandList->endMarker();
 
-    // UAV barrier so subsequent passes can read the G-buffer
-    commandList->setResourceStatesForBindingSet(m_bindingSet);
+    const auto mode = localSettings.resamplingMode;
 
-    // Pass 2: Generate Initial Samples
-    commandList->beginMarker("DIGenerateInitialSamples");
-    state.pipeline = m_initialSamplingPipeline;
-    commandList->setComputeState(state);
-    commandList->dispatch(dispatchWidth, dispatchHeight);
-    commandList->endMarker();
-
-    if (localSettings.enableResampling)
+    if (mode == rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal)
     {
-        // UAV barrier on reservoir buffer
         commandList->setResourceStatesForBindingSet(m_bindingSet);
 
-        // Pass 3: Temporal Resampling
-        commandList->beginMarker("DITemporalResampling");
-        state.pipeline = m_temporalResamplingPipeline;
-        commandList->setComputeState(state);
-        commandList->dispatch(dispatchWidth, dispatchHeight);
-        commandList->endMarker();
-
-        commandList->setResourceStatesForBindingSet(m_bindingSet);
-
-        // Pass 4: Spatial Resampling
-        commandList->beginMarker("DISpatialResampling");
-        state.pipeline = m_spatialResamplingPipeline;
+        commandList->beginMarker("DIFusedResampling");
+        state.pipeline = m_fusedResamplingPipeline;
         commandList->setComputeState(state);
         commandList->dispatch(dispatchWidth, dispatchHeight);
         commandList->endMarker();
     }
+    else
+    {
+        commandList->setResourceStatesForBindingSet(m_bindingSet);
 
-    // UAV barrier before shading
-    commandList->setResourceStatesForBindingSet(m_bindingSet);
+        commandList->beginMarker("DIGenerateInitialSamples");
+        state.pipeline = m_initialSamplingPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
 
-    // Pass 5: Shade Samples
-    commandList->beginMarker("DIShadeSamples");
-    state.pipeline = m_shadeSamplesPipeline;
-    commandList->setComputeState(state);
-    commandList->dispatch(dispatchWidth, dispatchHeight);
-    commandList->endMarker();
+        if (mode == rtxdi::ReSTIRDI_ResamplingMode::Temporal ||
+            mode == rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial)
+        {
+            commandList->setResourceStatesForBindingSet(m_bindingSet);
+
+            commandList->beginMarker("DITemporalResampling");
+            state.pipeline = m_temporalResamplingPipeline;
+            commandList->setComputeState(state);
+            commandList->dispatch(dispatchWidth, dispatchHeight);
+            commandList->endMarker();
+        }
+
+        if (mode == rtxdi::ReSTIRDI_ResamplingMode::Spatial ||
+            mode == rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial)
+        {
+            commandList->setResourceStatesForBindingSet(m_bindingSet);
+
+            commandList->beginMarker("DISpatialResampling");
+            state.pipeline = m_spatialResamplingPipeline;
+            commandList->setComputeState(state);
+            commandList->dispatch(dispatchWidth, dispatchHeight);
+            commandList->endMarker();
+        }
+
+        commandList->setResourceStatesForBindingSet(m_bindingSet);
+
+        commandList->beginMarker("DIShadeSamples");
+        state.pipeline = m_shadeSamplesPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+    }
 
     if (constants.enableBrdfIndirect)
     {

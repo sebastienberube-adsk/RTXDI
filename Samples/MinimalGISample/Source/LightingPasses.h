@@ -13,7 +13,7 @@
 #include <donut/core/math/math.h>
 #include <nvrhi/nvrhi.h>
 #include <memory>
-#include <Rtxdi/DI/ReSTIRDIParameters.h>
+#include <Rtxdi/DI/ReSTIRDI.h>
 
 namespace donut::engine
 {
@@ -40,8 +40,8 @@ class LightingPasses
 public:
     struct Settings
     {
+        rtxdi::ReSTIRDI_ResamplingMode resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial;
         bool unbiasedMode = false;
-        bool enableResampling = true;
         bool enableReSTIRGI = true;
         bool enableToneMapping = true;
 
@@ -84,6 +84,7 @@ private:
     nvrhi::ShaderHandle m_initialSamplingShader;
     nvrhi::ShaderHandle m_temporalResamplingShader;
     nvrhi::ShaderHandle m_spatialResamplingShader;
+    nvrhi::ShaderHandle m_fusedResamplingShader;
     nvrhi::ShaderHandle m_shadeSamplesShader;
     nvrhi::ShaderHandle m_brdfRayTracingShader;
     nvrhi::ShaderHandle m_shadeSecondarySurfacesShader;
@@ -96,6 +97,7 @@ private:
     nvrhi::ComputePipelineHandle m_initialSamplingPipeline;
     nvrhi::ComputePipelineHandle m_temporalResamplingPipeline;
     nvrhi::ComputePipelineHandle m_spatialResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_fusedResamplingPipeline;
     nvrhi::ComputePipelineHandle m_shadeSamplesPipeline;
     nvrhi::ComputePipelineHandle m_brdfRayTracingPipeline;
     nvrhi::ComputePipelineHandle m_shadeSecondarySurfacesPipeline;

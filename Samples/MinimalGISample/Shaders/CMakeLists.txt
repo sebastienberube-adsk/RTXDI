@@ -26,11 +26,7 @@ set(shaders
    HelperFunctions.hlsli
    PrepareLights.hlsl
    PrimaryRays.hlsli
-   GBufferPass.hlsl
-   DIGenerateInitialSamples.hlsl
-   DITemporalResampling.hlsl
-   DISpatialResampling.hlsl
-   DIShadeSamples.hlsl
+   Render.hlsl
    SceneGeometry.hlsli
    ShaderParameters.h
    TriangleLight.hlsli)

@@ -27,8 +27,6 @@ public:
     nvrhi::TextureHandle PrevGBufferNormals;
     nvrhi::TextureHandle PrevGBufferGeoNormals;
     
-    nvrhi::TextureHandle MotionVectors;
-    nvrhi::TextureHandle Emissive;
     nvrhi::TextureHandle HdrColor;
 
     dm::int2 Size;

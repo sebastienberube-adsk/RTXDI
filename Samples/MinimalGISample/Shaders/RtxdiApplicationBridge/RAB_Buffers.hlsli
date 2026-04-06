@@ -3,7 +3,7 @@
 
 #include "Rtxdi/RtxdiParameters.h"
 
-// Previous G-buffer resources (SRV)
+// Previous G-buffer resources
 Texture2D<float> t_PrevGBufferDepth : register(t0);
 Texture2D<uint> t_PrevGBufferNormals : register(t1);
 Texture2D<uint> t_PrevGBufferGeoNormals : register(t2);
@@ -29,8 +29,6 @@ RWTexture2D<uint> u_GBufferNormals : register(u3);
 RWTexture2D<uint> u_GBufferGeoNormals : register(u4);
 RWTexture2D<uint> u_GBufferDiffuseAlbedo : register(u5);
 RWTexture2D<uint> u_GBufferSpecularRough : register(u6);
-RWTexture2D<float4> u_MotionVectors : register(u7);
-RWTexture2D<float4> u_Emissive : register(u8);
 
 // Other
 ConstantBuffer<ResamplingConstants> g_Const : register(b0);
@@ -39,11 +37,15 @@ SamplerState s_MaterialSampler : register(s0);
 #define RTXDI_LIGHT_RESERVOIR_BUFFER u_LightReservoirs
 #define RTXDI_NEIGHBOR_OFFSETS_BUFFER t_NeighborOffsets
 
+// Translate the light index between the current and previous frame.
+// Do nothing as our lights are static in this sample.
 int RAB_TranslateLightIndex(uint lightIndex, bool currentToPrevious)
 {
     return int(lightIndex);
 }
 
+// Load the packed light information from the buffer.
+// Ignore the previousFrame parameter as our lights are static in this sample.
 RAB_LightInfo RAB_LoadLightInfo(uint index, bool previousFrame)
 {
     return t_LightDataBuffer[index];

@@ -50,7 +50,7 @@ struct ResamplingConstants
     uint frameIndex;
     uint enableResampling;
     uint enableMaterialSimilarityTest;
-    uint pad;
+    uint enableBasicToneMapping;
 };
 
 // See TriangleLight.hlsli for encoding format

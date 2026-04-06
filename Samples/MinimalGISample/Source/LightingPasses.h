@@ -49,6 +49,7 @@ public:
         uint32_t numDisocclusionBoostSamples = 0;
         uint32_t numInitialBRDFSamples = 1;
         float brdfCutoff = 0.f;
+        bool enableBasicToneMapping = true;
     };
 
     LightingPasses(
@@ -84,6 +85,7 @@ private:
     nvrhi::ShaderHandle m_spatialResamplingShader;
     nvrhi::ShaderHandle m_shadeSamplesShader;
     nvrhi::ShaderHandle m_DIFusedResamplingShader;
+    nvrhi::ShaderHandle m_compositingShader;
 
     nvrhi::ComputePipelineHandle m_gbufferPipeline;
     nvrhi::ComputePipelineHandle m_initialSamplingPipeline;
@@ -91,6 +93,7 @@ private:
     nvrhi::ComputePipelineHandle m_spatialResamplingPipeline;
     nvrhi::ComputePipelineHandle m_shadeSamplesPipeline;
     nvrhi::ComputePipelineHandle m_DIFusedResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_compositingPipeline;
 
     nvrhi::BindingLayoutHandle m_bindingLayout;
     nvrhi::BindingLayoutHandle m_bindlessLayout;
@@ -98,6 +101,8 @@ private:
     nvrhi::BindingSetHandle m_prevBindingSet;
     nvrhi::BufferHandle m_constantBuffer;
     nvrhi::BufferHandle m_lightReservoirBuffer;
+    nvrhi::TextureHandle m_diffuseLightingTexture;
+    nvrhi::TextureHandle m_specularLightingTexture;
 
     std::shared_ptr<donut::engine::ShaderFactory> m_shaderFactory;
     std::shared_ptr<donut::engine::CommonRenderPasses> m_commonPasses;

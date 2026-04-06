@@ -29,6 +29,8 @@ public:
     nvrhi::TextureHandle PrevGBufferGeoNormals;
     nvrhi::TextureHandle MotionVectors;
 
+    nvrhi::TextureHandle DiffuseLighting;
+    nvrhi::TextureHandle SpecularLighting;
     nvrhi::TextureHandle HdrColor;
 
     dm::int2 Size;

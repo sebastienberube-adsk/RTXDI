@@ -73,7 +73,15 @@ RenderTargets::RenderTargets(nvrhi::IDevice* device, int2 size)
     desc.debugName = "MotionVectors";
     MotionVectors = device->createTexture(desc);
 
-    // UAV-only textures
+    // Lighting buffers
+
+    desc.format = nvrhi::Format::RGBA16_FLOAT;
+    desc.debugName = "DiffuseLighting";
+    DiffuseLighting = device->createTexture(desc);
+
+    desc.format = nvrhi::Format::RGBA16_FLOAT;
+    desc.debugName = "SpecularLighting";
+    SpecularLighting = device->createTexture(desc);
 
     desc.format = nvrhi::Format::RGBA16_FLOAT;
     desc.debugName = "HdrColor";

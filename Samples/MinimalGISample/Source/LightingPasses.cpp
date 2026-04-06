@@ -65,7 +65,9 @@ LightingPasses::LightingPasses(
         nvrhi::BindingLayoutItem::Texture_UAV(6),
         nvrhi::BindingLayoutItem::Texture_UAV(7),
         nvrhi::BindingLayoutItem::Texture_UAV(8),
-        
+        nvrhi::BindingLayoutItem::Texture_UAV(9),
+        nvrhi::BindingLayoutItem::Texture_UAV(10),
+
         nvrhi::BindingLayoutItem::VolatileConstantBuffer(0),
         nvrhi::BindingLayoutItem::Sampler(0),
         nvrhi::BindingLayoutItem::Sampler(1),
@@ -104,7 +106,7 @@ void LightingPasses::CreateBindingSet(
             nvrhi::BindingSetItem::StructuredBuffer_SRV(22, resources.GeometryInstanceToLightBuffer),
 
             nvrhi::BindingSetItem::StructuredBuffer_UAV(0, resources.LightReservoirBuffer),
-            nvrhi::BindingSetItem::Texture_UAV(1, renderTargets.HdrColor),
+            nvrhi::BindingSetItem::Texture_UAV(1, renderTargets.DiffuseLighting),
             nvrhi::BindingSetItem::Texture_UAV(2, currentFrame ? renderTargets.Depth : renderTargets.PrevDepth),
             nvrhi::BindingSetItem::Texture_UAV(3, currentFrame ? renderTargets.GBufferNormals : renderTargets.PrevGBufferNormals),
             nvrhi::BindingSetItem::Texture_UAV(4, currentFrame ? renderTargets.GBufferGeoNormals : renderTargets.PrevGBufferGeoNormals),
@@ -112,6 +114,8 @@ void LightingPasses::CreateBindingSet(
             nvrhi::BindingSetItem::Texture_UAV(6, currentFrame ? renderTargets.GBufferSpecularRough : renderTargets.PrevGBufferSpecularRough),
             nvrhi::BindingSetItem::Texture_UAV(7, renderTargets.MotionVectors),
             nvrhi::BindingSetItem::Texture_UAV(8, renderTargets.GBufferEmissive),
+            nvrhi::BindingSetItem::Texture_UAV(9, renderTargets.SpecularLighting),
+            nvrhi::BindingSetItem::Texture_UAV(10, renderTargets.HdrColor),
             
             nvrhi::BindingSetItem::ConstantBuffer(0, m_constantBuffer),
             nvrhi::BindingSetItem::Sampler(0, m_commonPasses->m_LinearWrapSampler),
@@ -127,6 +131,8 @@ void LightingPasses::CreateBindingSet(
     }
     
     m_lightReservoirBuffer = resources.LightReservoirBuffer;
+    m_diffuseLightingTexture = renderTargets.DiffuseLighting;
+    m_specularLightingTexture = renderTargets.SpecularLighting;
 }
 
 void LightingPasses::CreatePipeline()
@@ -137,6 +143,7 @@ void LightingPasses::CreatePipeline()
     m_spatialResamplingShader = m_shaderFactory->CreateShader("app/DISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_shadeSamplesShader = m_shaderFactory->CreateShader("app/DIShadeSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_DIFusedResamplingShader = m_shaderFactory->CreateShader("app/DIFusedResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_compositingShader = m_shaderFactory->CreateShader("app/Compositing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     nvrhi::ComputePipelineDesc pipelineDesc;
     pipelineDesc.bindingLayouts = { m_bindingLayout, m_bindlessLayout };
@@ -158,6 +165,9 @@ void LightingPasses::CreatePipeline()
 
     pipelineDesc.CS = m_DIFusedResamplingShader;
     m_DIFusedResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_compositingShader;
+    m_compositingPipeline = m_device->createComputePipeline(pipelineDesc);
 }
 
 void LightingPasses::Render(
@@ -195,6 +205,7 @@ void LightingPasses::Render(
 
     constants.enableResampling = (localSettings.resamplingMode != rtxdi::ReSTIRDI_ResamplingMode::None);
     constants.enableMaterialSimilarityTest = localSettings.enableMaterialSimilarityTest;
+    constants.enableBasicToneMapping = localSettings.enableBasicToneMapping;
     constants.lightBufferParams = lightBufferParams;
     constants.runtimeParams = context.GetRuntimeParams();
 
@@ -277,6 +288,15 @@ void LightingPasses::Render(
         commandList->dispatch(dispatchWidth, dispatchHeight);
         commandList->endMarker();
     }
+
+    nvrhi::utils::TextureUavBarrier(commandList, m_diffuseLightingTexture);
+    nvrhi::utils::TextureUavBarrier(commandList, m_specularLightingTexture);
+
+    commandList->beginMarker("Compositing");
+    state.pipeline = m_compositingPipeline;
+    commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
+    commandList->endMarker();
 }
 
 void LightingPasses::NextFrame()

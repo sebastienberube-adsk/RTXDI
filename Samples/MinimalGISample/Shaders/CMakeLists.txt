@@ -24,6 +24,7 @@ set(shaders
    RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli
    GBufferHelpers.hlsli
    HelperFunctions.hlsli
+   ShadingHelpers.hlsli
    DIFusedResampling.hlsl
    DIGenerateInitialSamples.hlsl
    DISpatialResampling.hlsl
@@ -31,6 +32,7 @@ set(shaders
    GBufferPass.hlsl
    PrepareLights.hlsl
    DIShadeSamples.hlsl
+   Compositing.hlsl
    PrimaryRays.hlsli
    SceneGeometry.hlsli
    ShaderParameters.h

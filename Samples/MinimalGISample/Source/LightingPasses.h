@@ -81,6 +81,8 @@ private:
     nvrhi::ComputePipelineHandle m_DIInitialSamplingPipeline;
     nvrhi::ShaderHandle m_DITemporalResamplingShader;
     nvrhi::ComputePipelineHandle m_DITemporalResamplingPipeline;
+    nvrhi::ShaderHandle m_DISpatialResamplingShader;
+    nvrhi::ComputePipelineHandle m_DISpatialResamplingPipeline;
     nvrhi::ShaderHandle m_RenderShader;
     nvrhi::ComputePipelineHandle m_RenderPipeline;
 

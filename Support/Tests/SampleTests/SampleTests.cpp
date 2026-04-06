@@ -249,7 +249,17 @@ TEST(SampleImageTests, MinimalDI_vs_MinimalGI_DI)
     fs::path outB = GetOutputDir() / "MinimalGISample_DI.bmp";
 
     ASSERT_EQ(RunSample("MinimalSample", "", outA, 64), 0) << "MinimalSample failed to run";
-    ASSERT_EQ(RunSample("MinimalGISample", "--disable-gi", outB, 64), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("MinimalGISample", "--minimal-sample-compatibility-mode", outB, 64), 0) << "MinimalGISample failed to run";
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalDI vs MinimalGI_DI"));
+}
+
+TEST(SampleImageTests, MinimalDI_vs_MinimalGI_DI_VK)
+{
+    fs::path outA = GetOutputDir() / "MinimalSample_DI_VK.bmp";
+    fs::path outB = GetOutputDir() / "MinimalGISample_DI_VK.bmp";
+
+    ASSERT_EQ(RunSample("MinimalSample", "--vk", outA, 64), 0) << "MinimalSample failed to run";
+    ASSERT_EQ(RunSample("MinimalGISample", "--minimal-sample-compatibility-mode --vk", outB, 64), 0) << "MinimalGISample failed to run";
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalDI vs MinimalGI_DI"));
 }
 

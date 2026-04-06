@@ -82,10 +82,14 @@ RAB_Surface RAB_GetGBufferSurface(int2 pixelPosition, bool previousFrame)
 
     surface.normal = octToNdirUnorm32(t_PrevGBufferNormals[pixelPosition]);
     surface.geoNormal = octToNdirUnorm32(t_PrevGBufferGeoNormals[pixelPosition]);
+
+    surface.material.diffuseAlbedo = Unpack_R11G11B10_UFLOAT(t_PrevGBufferDiffuseAlbedo[pixelPosition]).rgb;
     float4 specularRough = Unpack_R8G8B8A8_Gamma_UFLOAT(t_PrevGBufferSpecularRough[pixelPosition]);
-    surface.material = RAB_GetGBufferMaterial(pixelPosition, view, u_GBufferDiffuseAlbedo, u_GBufferSpecularRough);
+    surface.material.roughness = specularRough.a;
+    surface.material.specularF0 = specularRough.rgb;
+
     surface.worldPos = viewDepthToWorldPos(view, pixelPosition, surface.viewDepth);
-    surface.viewDir = normalize(g_Const.view.cameraDirectionOrPosition.xyz - surface.worldPos);
+    surface.viewDir = normalize(g_Const.prevView.cameraDirectionOrPosition.xyz - surface.worldPos);
     surface.diffuseProbability = getSurfaceDiffuseProbability(surface);
 
     return surface;

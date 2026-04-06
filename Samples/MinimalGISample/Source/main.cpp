@@ -499,6 +499,7 @@ int main(int argc, char** argv)
     deviceParams.vsyncEnabled = true;
     deviceParams.infoLogSeverity = log::Severity::Debug;
 
+    UIData ui;
     CommandLineArguments args;
 
 #if DONUT_WITH_DX12
@@ -508,12 +509,10 @@ int main(int argc, char** argv)
 #endif
 
 #if defined(_WIN32)
-    ProcessCommandLine(__argc, __argv, deviceParams, args);
+    ProcessCommandLine(__argc, __argv, deviceParams, ui, args);
 #else
-    ProcessCommandLine(argc, argv, deviceParams, args);
+    ProcessCommandLine(argc, argv, deviceParams, ui, args);
 #endif
-
-    UIData ui;
 
     app::DeviceManager* deviceManager = app::DeviceManager::Create(args.graphicsApi);
     

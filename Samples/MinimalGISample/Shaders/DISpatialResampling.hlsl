@@ -41,7 +41,7 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         sparams.samplingRadius = g_Const.restirDI.spatialResamplingParams.spatialSamplingRadius;
         sparams.depthThreshold = g_Const.restirDI.spatialResamplingParams.spatialDepthThreshold;
         sparams.normalThreshold = g_Const.restirDI.spatialResamplingParams.spatialNormalThreshold;
-        sparams.enableMaterialSimilarityTest = true;
+        sparams.enableMaterialSimilarityTest = g_Const.enableMaterialSimilarityTest;
         sparams.discountNaiveSamples = g_Const.restirDI.spatialResamplingParams.discountNaiveSamples;
 
         RAB_LightSample lightSample = (RAB_LightSample)0;

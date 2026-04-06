@@ -24,6 +24,7 @@ set(shaders
    RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli
    GBufferHelpers.hlsli
    HelperFunctions.hlsli
+   DIFusedResampling.hlsl
    DIGenerateInitialSamples.hlsl
    DISpatialResampling.hlsl
    DITemporalResampling.hlsl

@@ -79,6 +79,8 @@ private:
     nvrhi::ComputePipelineHandle m_GBufferPassPipeline;
     nvrhi::ShaderHandle m_DIInitialSamplingShader;
     nvrhi::ComputePipelineHandle m_DIInitialSamplingPipeline;
+    nvrhi::ShaderHandle m_DITemporalResamplingShader;
+    nvrhi::ComputePipelineHandle m_DITemporalResamplingPipeline;
     nvrhi::ShaderHandle m_RenderShader;
     nvrhi::ComputePipelineHandle m_RenderPipeline;
 

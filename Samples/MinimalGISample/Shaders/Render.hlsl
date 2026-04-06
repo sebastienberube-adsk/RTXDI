@@ -346,7 +346,7 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
             stparams.depthThreshold = 0.1;
             stparams.normalThreshold = 0.5;
             stparams.numSamples = g_Const.numSpatialSamples + 1;
-            stparams.numDisocclusionBoostSamples = 0;
+            stparams.numDisocclusionBoostSamples = 8;
             stparams.samplingRadius = 32;
             stparams.enableVisibilityShortcut = false;
             stparams.enablePermutationSampling = true;

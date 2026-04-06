@@ -107,11 +107,11 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         shadingOutput += u_Emissive[pixelPosition].rgb;
         shadingOutput = basicToneMapping(shadingOutput, 0.005);
 
-        u_ShadingOutput[pixelPosition] = float4(shadingOutput, 0);
+        u_ShadingOutput[pixelPosition] = float4(shadingOutput, 1);
     }
     else
     {
-        u_ShadingOutput[pixelPosition] = 0;
+        u_ShadingOutput[pixelPosition] = float4(0, 0, 0, 1);
     }
 
     RTXDI_StoreDIReservoir(reservoir, g_Const.restirDI.reservoirBufferParams,

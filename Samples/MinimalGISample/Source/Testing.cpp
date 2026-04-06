@@ -76,6 +76,7 @@ void ProcessCommandLine(int argc, char** argv,
         ("height", "Render height override", value(args.renderHeight))
         ("direct-resampling", "Direct lighting resampling mode: NONE, TEMPORAL, SPATIAL, TEMPORAL_SPATIAL, FUSED", value(ui.lightingSettings.resamplingMode))
         ("disable-gi", "Disable ReSTIR GI (DI only)", value<bool>())
+        ("aa-mode", "Anti-aliasing mode: OFF, ACC (accumulation)", value<std::string>())
         ("minimal-sample-compatibility-mode", "Configure settings to match MinimalSample output for testing", value<bool>())
         ;
 
@@ -95,6 +96,14 @@ void ProcessCommandLine(int argc, char** argv,
     if (result.count("disable-gi"))
     {
         args.disableGI = true;
+    }
+
+    if (result.count("aa-mode"))
+    {
+        std::string mode = result["aa-mode"].as<std::string>();
+        toupper(mode);
+        if (mode == "ACC")
+            ui.enableAccumulation = true;
     }
 
     if (result.count("minimal-sample-compatibility-mode"))

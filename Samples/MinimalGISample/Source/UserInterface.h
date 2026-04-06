@@ -20,6 +20,9 @@ struct UIData
     bool reloadShaders = false;
     bool showUI = true;
     bool isLoading = true;
+    bool enableAccumulation = false;
+    bool resetAccumulation = false;
+    uint32_t numAccumulatedFrames = 0;
     
     LightingPasses::Settings lightingSettings;
 };

@@ -38,6 +38,7 @@ set(shaders
    GISpatialResampling.hlsl
    GIFinalShading.hlsl
    Compositing.hlsl
+   AccumulationPass.hlsl
    PrimaryRays.hlsli
    SceneGeometry.hlsli
    ShaderParameters.h

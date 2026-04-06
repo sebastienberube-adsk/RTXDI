@@ -32,6 +32,7 @@
 #include "RenderTargets.h"
 #include "PrepareLightsPass.h"
 #include "LightingPasses.h"
+#include "AccumulationPass.h"
 #include "RtxdiResources.h"
 #include "SampleScene.h"
 #include "UserInterface.h"
@@ -131,6 +132,7 @@ public:
 
         m_prepareLightsPass = std::make_unique<PrepareLightsPass>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_bindlessLayout);
         m_lightingPasses = std::make_unique<LightingPasses>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_bindlessLayout);
+        m_accumulationPass = std::make_unique<AccumulationPass>(GetDevice(), m_shaderFactory);
 
 
         LoadShaders();
@@ -202,6 +204,7 @@ public:
     {
         m_prepareLightsPass->CreatePipeline();
         m_lightingPasses->CreatePipeline();
+        m_accumulationPass->CreatePipeline();
     }
 
     bool LoadScene(std::shared_ptr<vfs::IFileSystem> fs, const std::filesystem::path& sceneFileName) override 
@@ -342,6 +345,8 @@ public:
                 m_scene->GetTopLevelAS(),
                 *m_renderTargets,
                 *m_rtxdiResources);
+
+            m_accumulationPass->CreateBindingSet(*m_renderTargets);
         }
     }
 
@@ -378,7 +383,24 @@ public:
             m_ui.lightingSettings,
             lightBufferParams);
 
-        m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->HdrColor, &m_bindingCache);
+        nvrhi::ITexture* displayTexture = m_renderTargets->HdrColor;
+
+        if (m_ui.enableAccumulation)
+        {
+            bool cameraIsStatic = m_view.GetViewMatrix() == m_viewPrevious.GetViewMatrix();
+            if (cameraIsStatic && !m_ui.resetAccumulation)
+                m_ui.numAccumulatedFrames += 1;
+            else
+                m_ui.numAccumulatedFrames = 1;
+
+            float accumulationWeight = 1.f / (float)m_ui.numAccumulatedFrames;
+
+            m_accumulationPass->Render(m_commandList, m_view, m_view, accumulationWeight);
+            displayTexture = m_renderTargets->AccumulatedColor;
+            m_ui.resetAccumulation = false;
+        }
+
+        m_CommonPasses->BlitTexture(m_commandList, framebuffer, displayTexture, &m_bindingCache);
         
         m_commandList->close();
         GetDevice()->executeCommandList(m_commandList);
@@ -488,6 +510,7 @@ private:
     std::unique_ptr<rtxdi::ReSTIRGIContext> m_restirGIContext;
     std::unique_ptr<PrepareLightsPass> m_prepareLightsPass;
     std::unique_ptr<LightingPasses> m_lightingPasses;
+    std::unique_ptr<AccumulationPass> m_accumulationPass;
     std::unique_ptr<RtxdiResources> m_rtxdiResources;
 
     UIData& m_ui;

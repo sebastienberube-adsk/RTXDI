@@ -86,6 +86,10 @@ RenderTargets::RenderTargets(nvrhi::IDevice* device, int2 size)
     desc.format = nvrhi::Format::RGBA16_FLOAT;
     desc.debugName = "HdrColor";
     HdrColor = device->createTexture(desc);
+
+    desc.format = nvrhi::Format::RGBA16_FLOAT;
+    desc.debugName = "AccumulatedColor";
+    AccumulatedColor = device->createTexture(desc);
 }
 
 bool RenderTargets::IsUpdateRequired(int2 size)

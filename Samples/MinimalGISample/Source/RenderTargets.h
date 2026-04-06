@@ -32,6 +32,7 @@ public:
     nvrhi::TextureHandle DiffuseLighting;
     nvrhi::TextureHandle SpecularLighting;
     nvrhi::TextureHandle HdrColor;
+    nvrhi::TextureHandle AccumulatedColor;
 
     dm::int2 Size;
 

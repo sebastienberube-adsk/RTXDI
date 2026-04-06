@@ -86,6 +86,15 @@ struct ResamplingConstants
     uint pad_2;
 };
 
+struct AccumulationConstants
+{
+    float2 outputSize;
+    float2 inputSize;
+    float2 inputTextureSizeInv;
+    float2 pixelOffset;
+    float blendFactor;
+};
+
 // See TriangleLight.hlsli for encoding format
 struct RAB_LightInfo
 {

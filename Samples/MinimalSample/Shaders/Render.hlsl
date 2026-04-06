@@ -282,6 +282,9 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         // which divides the reservoir weightSum by the number of samples considered (M).
         // So this step is essentially converting the reservoir back to "unfinalized" form
         // into the accumulator reservoir.
+        // Note: This is not exactly the inverse of the finalization step, because the finalization step
+        // divides "newReservoir.weightSum" by sampleParams.numMisSamples, which is typically the sum of
+        // all MIS samples (Brdf, LocalLights, env maps).
         RTXDI_CombineDIReservoirs(reservoir, localReservoir, 0.5, localReservoir.targetPdf);
 
         // Resample BRDF samples.

@@ -13,7 +13,7 @@
 #include <memory>
 #include <donut/engine/Scene.h>
 #include <donut/app/imgui_renderer.h>
-#include "LightingPasses.h"
+#include "RenderPass.h"
 
 struct UIData
 {
@@ -21,7 +21,7 @@ struct UIData
     bool showUI = true;
     bool isLoading = true;
     
-    LightingPasses::Settings lightingSettings;
+    RenderPass::Settings lightingSettings;
 };
 
 class UserInterface : public donut::app::ImGui_Renderer

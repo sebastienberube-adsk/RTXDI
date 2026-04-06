@@ -1,5 +1,5 @@
 /***************************************************************************
- # Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ # Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  #
  # NVIDIA CORPORATION and its licensors retain all intellectual property
  # and proprietary rights in and to this software, related documentation
@@ -8,7 +8,7 @@
  # license agreement from NVIDIA CORPORATION is strictly prohibited.
  **************************************************************************/
 
-#include "RenderPass.h"
+#include "LightingPasses.h"
 #include "RenderTargets.h"
 #include "RtxdiResources.h"
 
@@ -25,7 +25,7 @@ using namespace donut::math;
 
 using namespace donut::engine;
 
-RenderPass::RenderPass(
+LightingPasses::LightingPasses(
     nvrhi::IDevice* device, 
     std::shared_ptr<ShaderFactory> shaderFactory,
     std::shared_ptr<donut::engine::CommonRenderPasses> commonPasses,
@@ -38,8 +38,6 @@ RenderPass::RenderPass(
     , m_commonPasses(std::move(commonPasses))
     , m_scene(std::move(scene))
 {
-    // The binding layout descriptor must match the binding set descriptor defined in CreateBindingSet(...) below
-
     nvrhi::BindingLayoutDesc globalBindingLayoutDesc;
     globalBindingLayoutDesc.visibility = nvrhi::ShaderType::Compute | nvrhi::ShaderType::AllRayTracing;
     globalBindingLayoutDesc.bindings = {
@@ -65,6 +63,8 @@ RenderPass::RenderPass(
         nvrhi::BindingLayoutItem::Texture_UAV(4),
         nvrhi::BindingLayoutItem::Texture_UAV(5),
         nvrhi::BindingLayoutItem::Texture_UAV(6),
+        nvrhi::BindingLayoutItem::Texture_UAV(7),
+        nvrhi::BindingLayoutItem::Texture_UAV(8),
         
         nvrhi::BindingLayoutItem::VolatileConstantBuffer(0),
         nvrhi::BindingLayoutItem::Sampler(0),
@@ -76,7 +76,7 @@ RenderPass::RenderPass(
     m_constantBuffer = m_device->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(ResamplingConstants), "ResamplingConstants", 16));
 }
 
-void RenderPass::CreateBindingSet(
+void LightingPasses::CreateBindingSet(
     nvrhi::rt::IAccelStruct* topLevelAS,
     const RenderTargets& renderTargets,
     const RtxdiResources& resources)
@@ -86,8 +86,6 @@ void RenderPass::CreateBindingSet(
 
     for (int currentFrame = 0; currentFrame <= 1; currentFrame++)
     {
-        // This list must match the binding declarations in RtxdiApplicationBridge.hlsli
-
         nvrhi::BindingSetDesc bindingSetDesc;
         bindingSetDesc.bindings = {
             nvrhi::BindingSetItem::Texture_SRV(0, currentFrame ? renderTargets.PrevDepth : renderTargets.Depth),
@@ -112,6 +110,8 @@ void RenderPass::CreateBindingSet(
             nvrhi::BindingSetItem::Texture_UAV(4, currentFrame ? renderTargets.GBufferGeoNormals : renderTargets.PrevGBufferGeoNormals),
             nvrhi::BindingSetItem::Texture_UAV(5, currentFrame ? renderTargets.GBufferDiffuseAlbedo : renderTargets.PrevGBufferDiffuseAlbedo),
             nvrhi::BindingSetItem::Texture_UAV(6, currentFrame ? renderTargets.GBufferSpecularRough : renderTargets.PrevGBufferSpecularRough),
+            nvrhi::BindingSetItem::Texture_UAV(7, renderTargets.MotionVectors),
+            nvrhi::BindingSetItem::Texture_UAV(8, renderTargets.Emissive),
             
             nvrhi::BindingSetItem::ConstantBuffer(0, m_constantBuffer),
             nvrhi::BindingSetItem::Sampler(0, m_commonPasses->m_LinearWrapSampler),
@@ -129,17 +129,29 @@ void RenderPass::CreateBindingSet(
     m_lightReservoirBuffer = resources.LightReservoirBuffer;
 }
 
-void RenderPass::CreatePipeline()
+void LightingPasses::CreatePipelines()
 {
-    m_computeShader = m_shaderFactory->CreateShader("app/Render.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_gbufferShader = m_shaderFactory->CreateShader("app/GBufferPass.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_initialSamplingShader = m_shaderFactory->CreateShader("app/DIGenerateInitialSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_temporalResamplingShader = m_shaderFactory->CreateShader("app/DITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_spatialResamplingShader = m_shaderFactory->CreateShader("app/DISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_shadeSamplesShader = m_shaderFactory->CreateShader("app/DIShadeSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
-    nvrhi::ComputePipelineDesc pipelineDesc;
-    pipelineDesc.bindingLayouts = { m_bindingLayout, m_bindlessLayout };
-    pipelineDesc.CS = m_computeShader;
-    m_computePipeline = m_device->createComputePipeline(pipelineDesc);
+    auto createPipeline = [this](nvrhi::IShader* shader) -> nvrhi::ComputePipelineHandle {
+        nvrhi::ComputePipelineDesc pipelineDesc;
+        pipelineDesc.bindingLayouts = { m_bindingLayout, m_bindlessLayout };
+        pipelineDesc.CS = shader;
+        return m_device->createComputePipeline(pipelineDesc);
+    };
+
+    m_gbufferPipeline = createPipeline(m_gbufferShader);
+    m_initialSamplingPipeline = createPipeline(m_initialSamplingShader);
+    m_temporalResamplingPipeline = createPipeline(m_temporalResamplingShader);
+    m_spatialResamplingPipeline = createPipeline(m_spatialResamplingShader);
+    m_shadeSamplesPipeline = createPipeline(m_shadeSamplesShader);
 }
 
-void RenderPass::Render(
+void LightingPasses::Render(
     nvrhi::ICommandList* commandList,
     rtxdi::ReSTIRDIContext& context,
     const donut::engine::IView& view,
@@ -147,41 +159,106 @@ void RenderPass::Render(
     const Settings& localSettings,
     const RTXDI_LightBufferParameters& lightBufferParams)
 {
+    context.SetResamplingMode(localSettings.enableResampling
+        ? rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial
+        : rtxdi::ReSTIRDI_ResamplingMode::None);
+
+    ReSTIRDI_InitialSamplingParameters initialParams = context.GetInitialSamplingParameters();
+    initialParams.numPrimaryLocalLightSamples = localSettings.numInitialSamples;
+    initialParams.numPrimaryBrdfSamples = localSettings.numInitialBRDFSamples;
+    initialParams.brdfCutoff = localSettings.brdfCutoff;
+    initialParams.enableInitialVisibility = true;
+    context.SetInitialSamplingParameters(initialParams);
+
+    ReSTIRDI_TemporalResamplingParameters temporalParams = context.GetTemporalResamplingParameters();
+    temporalParams.temporalBiasCorrection = localSettings.unbiasedMode
+        ? ReSTIRDI_TemporalBiasCorrectionMode::Raytraced
+        : ReSTIRDI_TemporalBiasCorrectionMode::Basic;
+    context.SetTemporalResamplingParameters(temporalParams);
+
+    ReSTIRDI_SpatialResamplingParameters spatialParams = context.GetSpatialResamplingParameters();
+    spatialParams.numSpatialSamples = localSettings.numSpatialSamples;
+    spatialParams.spatialBiasCorrection = localSettings.unbiasedMode
+        ? ReSTIRDI_SpatialBiasCorrectionMode::Raytraced
+        : ReSTIRDI_SpatialBiasCorrectionMode::Basic;
+    context.SetSpatialResamplingParameters(spatialParams);
+
     ResamplingConstants constants = {};
     constants.frameIndex = context.GetFrameIndex();
     view.FillPlanarViewConstants(constants.view);
     previousView.FillPlanarViewConstants(constants.prevView);
 
-    constants.enableResampling = localSettings.enableResampling;
-    constants.unbiasedMode = localSettings.unbiasedMode;
-    constants.numInitialSamples = localSettings.numInitialSamples;
-    constants.numInitialBRDFSamples = localSettings.numInitialBRDFSamples;
-    constants.numSpatialSamples = localSettings.numSpatialSamples;
-    constants.restirDIReservoirBufferParams = context.GetReservoirBufferParameters();
+    constants.runtimeParams = context.GetRuntimeParams();
     constants.lightBufferParams = lightBufferParams;
-    constants.runtimeParams.neighborOffsetMask = context.GetStaticParameters().NeighborOffsetCount - 1;
-    constants.runtimeParams.activeCheckerboardField = 0;
 
-    constants.inputBufferIndex = !(context.GetFrameIndex() & 1);
-    constants.outputBufferIndex = context.GetFrameIndex() & 1;
-    
+    constants.restirDI.reservoirBufferParams = context.GetReservoirBufferParameters();
+    constants.restirDI.bufferIndices = context.GetBufferIndices();
+    constants.restirDI.initialSamplingParams = context.GetInitialSamplingParameters();
+    constants.restirDI.temporalResamplingParams = context.GetTemporalResamplingParameters();
+    constants.restirDI.spatialResamplingParams = context.GetSpatialResamplingParameters();
+    constants.restirDI.shadingParams = context.GetShadingParameters();
+
+    constants.enableResampling = localSettings.enableResampling;
+
     commandList->writeBuffer(m_constantBuffer, &constants, sizeof(constants));
 
-    commandList->beginMarker("Render");
+    const uint32_t dispatchWidth = dm::div_ceil(view.GetViewExtent().width(), RTXDI_SCREEN_SPACE_GROUP_SIZE);
+    const uint32_t dispatchHeight = dm::div_ceil(view.GetViewExtent().height(), RTXDI_SCREEN_SPACE_GROUP_SIZE);
 
     nvrhi::ComputeState state;
     state.bindings = { m_bindingSet, m_scene->GetDescriptorTable() };
-    state.pipeline = m_computePipeline;
+
+    // Pass 1: G-Buffer
+    commandList->beginMarker("GBuffer");
+    state.pipeline = m_gbufferPipeline;
     commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
+    commandList->endMarker();
 
-    commandList->dispatch(
-        dm::div_ceil(view.GetViewExtent().width(), RTXDI_SCREEN_SPACE_GROUP_SIZE),
-        dm::div_ceil(view.GetViewExtent().height(), RTXDI_SCREEN_SPACE_GROUP_SIZE));
+    // UAV barrier so subsequent passes can read the G-buffer
+    commandList->setResourceStatesForBindingSet(m_bindingSet);
 
+    // Pass 2: Generate Initial Samples
+    commandList->beginMarker("DIGenerateInitialSamples");
+    state.pipeline = m_initialSamplingPipeline;
+    commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
+    commandList->endMarker();
+
+    if (localSettings.enableResampling)
+    {
+        // UAV barrier on reservoir buffer
+        commandList->setResourceStatesForBindingSet(m_bindingSet);
+
+        // Pass 3: Temporal Resampling
+        commandList->beginMarker("DITemporalResampling");
+        state.pipeline = m_temporalResamplingPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+
+        commandList->setResourceStatesForBindingSet(m_bindingSet);
+
+        // Pass 4: Spatial Resampling
+        commandList->beginMarker("DISpatialResampling");
+        state.pipeline = m_spatialResamplingPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+    }
+
+    // UAV barrier before shading
+    commandList->setResourceStatesForBindingSet(m_bindingSet);
+
+    // Pass 5: Shade Samples
+    commandList->beginMarker("DIShadeSamples");
+    state.pipeline = m_shadeSamplesPipeline;
+    commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
     commandList->endMarker();
 }
 
-void RenderPass::NextFrame()
+void LightingPasses::NextFrame()
 {
     std::swap(m_bindingSet, m_prevBindingSet);
 }

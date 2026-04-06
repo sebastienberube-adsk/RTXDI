@@ -44,21 +44,12 @@ struct ResamplingConstants
     PlanarViewConstants prevView;
     RTXDI_RuntimeParameters runtimeParams;
     RTXDI_LightBufferParameters lightBufferParams;
-    RTXDI_ReservoirBufferParameters restirDIReservoirBufferParams;
+
+    ReSTIRDI_Parameters restirDI;
 
     uint frameIndex;
-    uint numInitialSamples;
-    uint numSpatialSamples;
-    uint pad1;
-
-    uint numInitialBRDFSamples;
-    float brdfCutoff;
-    uint2 pad2;
-
     uint enableResampling;
-    uint unbiasedMode;
-    uint inputBufferIndex;
-    uint outputBufferIndex;
+    uint2 pad;
 };
 
 // See TriangleLight.hlsli for encoding format

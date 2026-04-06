@@ -135,6 +135,8 @@ void LightingPasses::CreateBindingSet(
     }
     
     m_lightReservoirBuffer = resources.LightReservoirBuffer;
+    m_secondaryGBuffer = resources.SecondaryGBuffer;
+    m_giReservoirBuffer = resources.GIReservoirBuffer;
     m_diffuseLightingTexture = renderTargets.DiffuseLighting;
     m_specularLightingTexture = renderTargets.SpecularLighting;
 }
@@ -147,6 +149,8 @@ void LightingPasses::CreatePipeline()
     m_spatialResamplingShader = m_shaderFactory->CreateShader("app/DISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_shadeSamplesShader = m_shaderFactory->CreateShader("app/DIShadeSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_DIFusedResamplingShader = m_shaderFactory->CreateShader("app/DIFusedResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_brdfRayTracingShader = m_shaderFactory->CreateShader("app/BrdfRayTracing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_shadeSecondarySurfacesShader = m_shaderFactory->CreateShader("app/ShadeSecondarySurfaces.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_compositingShader = m_shaderFactory->CreateShader("app/Compositing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     nvrhi::ComputePipelineDesc pipelineDesc;
@@ -169,6 +173,12 @@ void LightingPasses::CreatePipeline()
 
     pipelineDesc.CS = m_DIFusedResamplingShader;
     m_DIFusedResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_brdfRayTracingShader;
+    m_brdfRayTracingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_shadeSecondarySurfacesShader;
+    m_shadeSecondarySurfacesPipeline = m_device->createComputePipeline(pipelineDesc);
 
     pipelineDesc.CS = m_compositingShader;
     m_compositingPipeline = m_device->createComputePipeline(pipelineDesc);
@@ -227,7 +237,8 @@ void LightingPasses::Render(
     constants.restirGI.spatialResamplingParams = giContext.GetSpatialResamplingParameters();
     constants.restirGI.finalShadingParams = giContext.GetFinalShadingParameters();
 
-    constants.enableBrdfIndirect = 0;
+    constants.enableBrdfIndirect = localSettings.enableBrdfIndirect ? 1 : 0;
+    constants.brdfPT.enableReSTIRGI = localSettings.enableBrdfIndirect ? 1 : 0;
 
     commandList->writeBuffer(m_constantBuffer, &constants, sizeof(constants));
 
@@ -297,6 +308,27 @@ void LightingPasses::Render(
 
         commandList->beginMarker("DIShadeSamples");
         state.pipeline = m_shadeSamplesPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+    }
+
+    bool enableBrdfIndirect = localSettings.enableBrdfIndirect;
+    if (enableBrdfIndirect)
+    {
+        nvrhi::utils::TextureUavBarrier(commandList, m_diffuseLightingTexture);
+        nvrhi::utils::TextureUavBarrier(commandList, m_specularLightingTexture);
+
+        commandList->beginMarker("BrdfRayTracing");
+        state.pipeline = m_brdfRayTracingPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+
+        nvrhi::utils::BufferUavBarrier(commandList, m_secondaryGBuffer);
+
+        commandList->beginMarker("ShadeSecondarySurfaces");
+        state.pipeline = m_shadeSecondarySurfacesPipeline;
         commandList->setComputeState(state);
         commandList->dispatch(dispatchWidth, dispatchHeight);
         commandList->endMarker();

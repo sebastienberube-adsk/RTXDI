@@ -52,6 +52,7 @@ public:
         uint32_t numInitialBRDFSamples = 1;
         float brdfCutoff = 0.f;
         bool enableBasicToneMapping = true;
+        bool enableBrdfIndirect = false;
     };
 
     LightingPasses(
@@ -88,6 +89,8 @@ private:
     nvrhi::ShaderHandle m_spatialResamplingShader;
     nvrhi::ShaderHandle m_shadeSamplesShader;
     nvrhi::ShaderHandle m_DIFusedResamplingShader;
+    nvrhi::ShaderHandle m_brdfRayTracingShader;
+    nvrhi::ShaderHandle m_shadeSecondarySurfacesShader;
     nvrhi::ShaderHandle m_compositingShader;
 
     nvrhi::ComputePipelineHandle m_gbufferPipeline;
@@ -96,6 +99,8 @@ private:
     nvrhi::ComputePipelineHandle m_spatialResamplingPipeline;
     nvrhi::ComputePipelineHandle m_shadeSamplesPipeline;
     nvrhi::ComputePipelineHandle m_DIFusedResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_brdfRayTracingPipeline;
+    nvrhi::ComputePipelineHandle m_shadeSecondarySurfacesPipeline;
     nvrhi::ComputePipelineHandle m_compositingPipeline;
 
     nvrhi::BindingLayoutHandle m_bindingLayout;
@@ -104,6 +109,8 @@ private:
     nvrhi::BindingSetHandle m_prevBindingSet;
     nvrhi::BufferHandle m_constantBuffer;
     nvrhi::BufferHandle m_lightReservoirBuffer;
+    nvrhi::BufferHandle m_secondaryGBuffer;
+    nvrhi::BufferHandle m_giReservoirBuffer;
     nvrhi::TextureHandle m_diffuseLightingTexture;
     nvrhi::TextureHandle m_specularLightingTexture;
 

@@ -32,6 +32,8 @@ set(shaders
    GBufferPass.hlsl
    PrepareLights.hlsl
    DIShadeSamples.hlsl
+   BrdfRayTracing.hlsl
+   ShadeSecondarySurfaces.hlsl
    Compositing.hlsl
    PrimaryRays.hlsli
    SceneGeometry.hlsli

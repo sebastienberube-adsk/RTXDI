@@ -34,6 +34,8 @@ set(shaders
    DIShadeSamples.hlsl
    BrdfRayTracing.hlsl
    ShadeSecondarySurfaces.hlsl
+   GITemporalResampling.hlsl
+   GISpatialResampling.hlsl
    Compositing.hlsl
    PrimaryRays.hlsli
    SceneGeometry.hlsli

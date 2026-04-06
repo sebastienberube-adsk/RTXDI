@@ -151,6 +151,8 @@ void LightingPasses::CreatePipeline()
     m_DIFusedResamplingShader = m_shaderFactory->CreateShader("app/DIFusedResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_brdfRayTracingShader = m_shaderFactory->CreateShader("app/BrdfRayTracing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_shadeSecondarySurfacesShader = m_shaderFactory->CreateShader("app/ShadeSecondarySurfaces.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_giTemporalResamplingShader = m_shaderFactory->CreateShader("app/GITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_giSpatialResamplingShader = m_shaderFactory->CreateShader("app/GISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_compositingShader = m_shaderFactory->CreateShader("app/Compositing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     nvrhi::ComputePipelineDesc pipelineDesc;
@@ -179,6 +181,12 @@ void LightingPasses::CreatePipeline()
 
     pipelineDesc.CS = m_shadeSecondarySurfacesShader;
     m_shadeSecondarySurfacesPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_giTemporalResamplingShader;
+    m_giTemporalResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_giSpatialResamplingShader;
+    m_giSpatialResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
 
     pipelineDesc.CS = m_compositingShader;
     m_compositingPipeline = m_device->createComputePipeline(pipelineDesc);
@@ -329,6 +337,22 @@ void LightingPasses::Render(
 
         commandList->beginMarker("ShadeSecondarySurfaces");
         state.pipeline = m_shadeSecondarySurfacesPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+
+        nvrhi::utils::BufferUavBarrier(commandList, m_giReservoirBuffer);
+
+        commandList->beginMarker("GITemporalResampling");
+        state.pipeline = m_giTemporalResamplingPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+
+        nvrhi::utils::BufferUavBarrier(commandList, m_giReservoirBuffer);
+
+        commandList->beginMarker("GISpatialResampling");
+        state.pipeline = m_giSpatialResamplingPipeline;
         commandList->setComputeState(state);
         commandList->dispatch(dispatchWidth, dispatchHeight);
         commandList->endMarker();

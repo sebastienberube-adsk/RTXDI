@@ -78,18 +78,19 @@ public:
 private:
     nvrhi::DeviceHandle m_device;
 
-    nvrhi::ShaderHandle m_GBufferPassShader;
-    nvrhi::ComputePipelineHandle m_GBufferPassPipeline;
-    nvrhi::ShaderHandle m_DIInitialSamplingShader;
-    nvrhi::ComputePipelineHandle m_DIInitialSamplingPipeline;
-    nvrhi::ShaderHandle m_DITemporalResamplingShader;
-    nvrhi::ComputePipelineHandle m_DITemporalResamplingPipeline;
-    nvrhi::ShaderHandle m_DISpatialResamplingShader;
-    nvrhi::ComputePipelineHandle m_DISpatialResamplingPipeline;
+    nvrhi::ShaderHandle m_gbufferShader;
+    nvrhi::ShaderHandle m_initialSamplingShader;
+    nvrhi::ShaderHandle m_temporalResamplingShader;
+    nvrhi::ShaderHandle m_spatialResamplingShader;
+    nvrhi::ShaderHandle m_shadeSamplesShader;
     nvrhi::ShaderHandle m_DIFusedResamplingShader;
+
+    nvrhi::ComputePipelineHandle m_gbufferPipeline;
+    nvrhi::ComputePipelineHandle m_initialSamplingPipeline;
+    nvrhi::ComputePipelineHandle m_temporalResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_spatialResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_shadeSamplesPipeline;
     nvrhi::ComputePipelineHandle m_DIFusedResamplingPipeline;
-    nvrhi::ShaderHandle m_RenderShader;
-    nvrhi::ComputePipelineHandle m_RenderPipeline;
 
     nvrhi::BindingLayoutHandle m_bindingLayout;
     nvrhi::BindingLayoutHandle m_bindlessLayout;

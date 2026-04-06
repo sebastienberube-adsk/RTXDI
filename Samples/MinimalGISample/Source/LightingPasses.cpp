@@ -111,7 +111,7 @@ void LightingPasses::CreateBindingSet(
             nvrhi::BindingSetItem::Texture_UAV(5, currentFrame ? renderTargets.GBufferDiffuseAlbedo : renderTargets.PrevGBufferDiffuseAlbedo),
             nvrhi::BindingSetItem::Texture_UAV(6, currentFrame ? renderTargets.GBufferSpecularRough : renderTargets.PrevGBufferSpecularRough),
             nvrhi::BindingSetItem::Texture_UAV(7, renderTargets.MotionVectors),
-            nvrhi::BindingSetItem::Texture_UAV(8, renderTargets.Emissive),
+            nvrhi::BindingSetItem::Texture_UAV(8, renderTargets.GBufferEmissive),
             
             nvrhi::BindingSetItem::ConstantBuffer(0, m_constantBuffer),
             nvrhi::BindingSetItem::Sampler(0, m_commonPasses->m_LinearWrapSampler),
@@ -131,33 +131,33 @@ void LightingPasses::CreateBindingSet(
 
 void LightingPasses::CreatePipeline()
 {
-    m_GBufferPassShader = m_shaderFactory->CreateShader("app/GBufferPass.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
-    m_DIInitialSamplingShader = m_shaderFactory->CreateShader("app/DIGenerateInitialSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
-    m_DITemporalResamplingShader = m_shaderFactory->CreateShader("app/DITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
-    m_DISpatialResamplingShader = m_shaderFactory->CreateShader("app/DISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_gbufferShader = m_shaderFactory->CreateShader("app/GBufferPass.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_initialSamplingShader = m_shaderFactory->CreateShader("app/DIGenerateInitialSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_temporalResamplingShader = m_shaderFactory->CreateShader("app/DITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_spatialResamplingShader = m_shaderFactory->CreateShader("app/DISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_shadeSamplesShader = m_shaderFactory->CreateShader("app/DIShadeSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_DIFusedResamplingShader = m_shaderFactory->CreateShader("app/DIFusedResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
-    m_RenderShader = m_shaderFactory->CreateShader("app/DIShadeSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     nvrhi::ComputePipelineDesc pipelineDesc;
     pipelineDesc.bindingLayouts = { m_bindingLayout, m_bindlessLayout };
 
-    pipelineDesc.CS = m_GBufferPassShader;
-    m_GBufferPassPipeline = m_device->createComputePipeline(pipelineDesc);
+    pipelineDesc.CS = m_gbufferShader;
+    m_gbufferPipeline = m_device->createComputePipeline(pipelineDesc);
 
-    pipelineDesc.CS = m_DIInitialSamplingShader;
-    m_DIInitialSamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+    pipelineDesc.CS = m_initialSamplingShader;
+    m_initialSamplingPipeline = m_device->createComputePipeline(pipelineDesc);
 
-    pipelineDesc.CS = m_DITemporalResamplingShader;
-    m_DITemporalResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+    pipelineDesc.CS = m_temporalResamplingShader;
+    m_temporalResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
 
-    pipelineDesc.CS = m_DISpatialResamplingShader;
-    m_DISpatialResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+    pipelineDesc.CS = m_spatialResamplingShader;
+    m_spatialResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_shadeSamplesShader;
+    m_shadeSamplesPipeline = m_device->createComputePipeline(pipelineDesc);
 
     pipelineDesc.CS = m_DIFusedResamplingShader;
     m_DIFusedResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
-
-    pipelineDesc.CS = m_RenderShader;
-    m_RenderPipeline = m_device->createComputePipeline(pipelineDesc);
 }
 
 void LightingPasses::Render(
@@ -214,10 +214,16 @@ void LightingPasses::Render(
     state.bindings = { m_bindingSet, m_scene->GetDescriptorTable() };
 
     commandList->beginMarker("GBufferPass");
-    state.pipeline = m_GBufferPassPipeline;
+    state.pipeline = m_gbufferPipeline;
     commandList->setComputeState(state);
     commandList->dispatch(dispatchWidth, dispatchHeight);
     commandList->endMarker();
+
+    // Run the lighting passes in the necessary sequence: one fused kernel or multiple separate passes.
+    //
+    // Note: the below code places explicit UAV barriers between subsequent passes
+    // because NVRHI misses them, as the binding sets are exactly the same between these passes.
+    // That equality makes NVRHI take a shortcut for performance and it doesn't look at bindings at all.
 
     const auto mode = localSettings.resamplingMode;
 
@@ -233,10 +239,8 @@ void LightingPasses::Render(
     }
     else
     {
-        nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
-
         commandList->beginMarker("DIGenerateInitialSamples");
-        state.pipeline = m_DIInitialSamplingPipeline;
+        state.pipeline = m_initialSamplingPipeline;
         commandList->setComputeState(state);
         commandList->dispatch(dispatchWidth, dispatchHeight);
         commandList->endMarker();
@@ -247,7 +251,7 @@ void LightingPasses::Render(
             nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
 
             commandList->beginMarker("DITemporalResampling");
-            state.pipeline = m_DITemporalResamplingPipeline;
+            state.pipeline = m_temporalResamplingPipeline;
             commandList->setComputeState(state);
             commandList->dispatch(dispatchWidth, dispatchHeight);
             commandList->endMarker();
@@ -259,7 +263,7 @@ void LightingPasses::Render(
             nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
 
             commandList->beginMarker("DISpatialResampling");
-            state.pipeline = m_DISpatialResamplingPipeline;
+            state.pipeline = m_spatialResamplingPipeline;
             commandList->setComputeState(state);
             commandList->dispatch(dispatchWidth, dispatchHeight);
             commandList->endMarker();
@@ -268,7 +272,7 @@ void LightingPasses::Render(
         nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
 
         commandList->beginMarker("DIShadeSamples");
-        state.pipeline = m_RenderPipeline;
+        state.pipeline = m_shadeSamplesPipeline;
         commandList->setComputeState(state);
         commandList->dispatch(dispatchWidth, dispatchHeight);
         commandList->endMarker();

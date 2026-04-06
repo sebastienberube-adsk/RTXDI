@@ -15,6 +15,8 @@
 using namespace dm;
 using namespace donut;
 
+#include "../shaders/ShaderParameters.h"
+
 RenderTargets::RenderTargets(nvrhi::IDevice* device, int2 size)
     : Size(size)
 {
@@ -26,15 +28,19 @@ RenderTargets::RenderTargets(nvrhi::IDevice* device, int2 size)
     desc.isRenderTarget = false;
     desc.isUAV = true;
     desc.initialState = nvrhi::ResourceStates::UnorderedAccess;
-    desc.useClearValue = false;
-    desc.clearValue = 0.f;
+
+    // Depth buffers
+    // Note: FullSample sets useClearValue=true with BACKGROUND_DEPTH here, but that requires
+    // isRenderTarget=true. MinimalGISample uses UAV-only depth, so clearValue is not applicable.
 
     desc.format = nvrhi::Format::R32_FLOAT;
     desc.debugName = "DepthBuffer";
     Depth = device->createTexture(desc);
     desc.debugName = "PrevDepthBuffer";
     PrevDepth = device->createTexture(desc);
-    
+
+    // G-buffer targets
+
     desc.format = nvrhi::Format::R32_UINT;
     desc.debugName = "GBufferDiffuseAlbedo";
     GBufferDiffuseAlbedo = device->createTexture(desc);
@@ -58,12 +64,18 @@ RenderTargets::RenderTargets(nvrhi::IDevice* device, int2 size)
     GBufferGeoNormals = device->createTexture(desc);
     desc.debugName = "PrevGBufferGeoNormals";
     PrevGBufferGeoNormals = device->createTexture(desc);
-    
+
+    desc.format = nvrhi::Format::RGBA16_FLOAT;
+    desc.debugName = "GBufferEmissive";
+    GBufferEmissive = device->createTexture(desc);
+
     desc.format = nvrhi::Format::RGBA16_FLOAT;
     desc.debugName = "MotionVectors";
     MotionVectors = device->createTexture(desc);
-    desc.debugName = "Emissive";
-    Emissive = device->createTexture(desc);
+
+    // UAV-only textures
+
+    desc.format = nvrhi::Format::RGBA16_FLOAT;
     desc.debugName = "HdrColor";
     HdrColor = device->createTexture(desc);
 }

@@ -25,6 +25,8 @@
 #include <donut/core/vfs/VFS.h>
 #include <donut/core/math/math.h>
 #include <nvrhi/utils.h>
+#include <cxxopts.hpp>
+#include <SaveTexture.h>
 
 #include "RenderTargets.h"
 #include "PrepareLightsPass.h"
@@ -45,15 +47,27 @@ extern "C" {
 using namespace donut;
 using namespace donut::math;
 using namespace std::chrono;
+namespace fs = std::filesystem;
+
+static int g_ExitCode = 0;
+
+struct CommandLineArguments
+{
+    nvrhi::GraphicsAPI graphicsApi = nvrhi::GraphicsAPI::D3D12;
+    uint32_t saveFrameIndex = 0;
+    std::string saveFrameFileName;
+    std::string scenePath;
+};
+
 
 class SceneRenderer : public app::ApplicationBase
 {
 public:
-    SceneRenderer(app::DeviceManager* deviceManager, UIData& ui, const std::string& scenePath)
+    SceneRenderer(app::DeviceManager* deviceManager, UIData& ui, const CommandLineArguments& args)
         : ApplicationBase(deviceManager)
         , m_bindingCache(deviceManager->GetDevice())
         , m_ui(ui)
-        , m_scenePath(scenePath)
+        , m_args(args)
     { 
     }
 
@@ -108,9 +122,9 @@ public:
             m_bindlessLayout = GetDevice()->createBindlessLayout(bindlessLayoutDesc);
         }
 
-        std::filesystem::path scenePath = m_scenePath.empty()
+        std::filesystem::path scenePath = m_args.scenePath.empty()
             ? "/Assets/Media/Arcade/Arcade.gltf"
-            : m_scenePath;
+            : m_args.scenePath;
 
         m_descriptorTableManager = std::make_shared<engine::DescriptorTableManager>(GetDevice(), m_bindlessLayout);
 
@@ -142,7 +156,7 @@ public:
 
         if (!m_cameraInitialized)
         {
-            if (m_scenePath.empty())
+            if (m_args.scenePath.empty())
                 m_camera.LookAt(float3(-1.658f, 1.577f, 1.69f), float3(-0.9645f, 1.2672f, 1.0396f));
             else
                 m_camera.LookAt(float3(0.f, 1.5f, 3.f), float3(0.f, 1.0f, 0.f));
@@ -241,7 +255,10 @@ public:
     {
         if (m_ui.isLoading)
             return;
-        
+
+        if (!m_args.saveFrameFileName.empty())
+            fElapsedTimeSeconds = 1.f / 60.f;
+
         m_camera.Animate(fElapsedTimeSeconds);
     }
 
@@ -373,11 +390,20 @@ public:
         m_commandList->close();
         GetDevice()->executeCommandList(m_commandList);
 
+        if (!m_args.saveFrameFileName.empty() && m_renderFrameIndex == m_args.saveFrameIndex)
+        {
+            nvrhi::ITexture* backBuffer = framebuffer->getDesc().colorAttachments[0].texture;
+            bool success = SaveTexture(GetDevice(), backBuffer, m_args.saveFrameFileName.c_str());
+            g_ExitCode = success ? 0 : 1;
+            glfwSetWindowShouldClose(GetDeviceManager()->GetWindow(), 1);
+        }
+
         // Swap the even and odd frame buffers
         m_renderPass->NextFrame();
         m_renderTargets->NextFrame();
 
         m_viewPrevious = m_view;
+        m_renderFrameIndex++;
     }
 
 private:
@@ -401,32 +427,45 @@ private:
     std::unique_ptr<RtxdiResources> m_rtxdiResources;
 
     UIData& m_ui;
-    std::string m_scenePath;
+    CommandLineArguments m_args;
     bool m_cameraInitialized = false;
+    uint32_t m_renderFrameIndex = 0;
 };
 
-void ProcessCommandLine(int argc, char** argv, app::DeviceCreationParameters& deviceParams, nvrhi::GraphicsAPI& api, std::string& scenePath)
+void ProcessCommandLine(int argc, char** argv, app::DeviceCreationParameters& deviceParams, CommandLineArguments& args)
 {
-    for (int i = 1; i < argc; i++)
+    using namespace cxxopts;
+
+    Options options("MinimalSample", "RTXDI Minimal Sample");
+
+    bool useVk = false;
+    options.add_options()
+        ("debug", "Enable debug runtime", value<bool>())
+        ("vk", "Use Vulkan", value(useVk))
+        ("save-file", "Save frame to file and exit", value(args.saveFrameFileName))
+        ("save-frame", "Index of the frame to save (default 0)", value(args.saveFrameIndex))
+        ("scene", "Scene file path (VFS path, e.g. /Assets/Media/Arcade/Arcade.gltf)", value(args.scenePath))
+        ;
+
+    auto result = options.parse(argc, argv);
+
+    if (result.count("debug"))
     {
-        if (strcmp(argv[i], "--debug") == 0)
-        {
-            deviceParams.enableDebugRuntime = true;
-            deviceParams.enableNvrhiValidationLayer = true;
-        }
-        else if (strcmp(argv[i], "--vk") == 0)
-        {
-            api = nvrhi::GraphicsAPI::VULKAN;
-        }
-        else if (strcmp(argv[i], "--scene") == 0 && i + 1 < argc)
-        {
-            scenePath = argv[++i];
-        }
-        else
-        {
-            log::error("Unknown command line argument: %s", argv[i]);
-            exit(1);
-        }
+        deviceParams.enableDebugRuntime = true;
+        deviceParams.enableNvrhiValidationLayer = true;
+    }
+
+#if DONUT_WITH_DX12 && DONUT_WITH_VULKAN
+    args.graphicsApi = useVk ? nvrhi::GraphicsAPI::VULKAN : nvrhi::GraphicsAPI::D3D12;
+#elif DONUT_WITH_DX12
+    args.graphicsApi = nvrhi::GraphicsAPI::D3D12;
+#elif DONUT_WITH_VULKAN
+    args.graphicsApi = nvrhi::GraphicsAPI::VULKAN;
+#endif
+
+    if (args.saveFrameIndex != 0 && args.saveFrameFileName.empty())
+    {
+        log::warning("--save-frame is set but --save-file is not given. It will be ignored.");
     }
 }
 
@@ -445,20 +484,15 @@ int main(int argc, char** argv)
     deviceParams.infoLogSeverity = log::Severity::Debug;
 
     UIData ui;
-    std::string scenePath;
-#if DONUT_WITH_DX12
-    nvrhi::GraphicsAPI api = nvrhi::GraphicsAPI::D3D12;
-#else
-    nvrhi::GraphicsAPI api = nvrhi::GraphicsAPI::VULKAN;
-#endif
+    CommandLineArguments args;
 
 #if defined(_WIN32)
-    ProcessCommandLine(__argc, __argv, deviceParams, api, scenePath);
+    ProcessCommandLine(__argc, __argv, deviceParams, args);
 #else
-    ProcessCommandLine(argc, argv, deviceParams, api, scenePath);
+    ProcessCommandLine(argc, argv, deviceParams, args);
 #endif
 
-    app::DeviceManager* deviceManager = app::DeviceManager::Create(api);
+    app::DeviceManager* deviceManager = app::DeviceManager::Create(args.graphicsApi);
     
     const char* apiString = nvrhi::utils::GraphicsAPIToString(deviceManager->GetGraphicsAPI());
 
@@ -481,7 +515,7 @@ int main(int argc, char** argv)
     }
 
     {
-        SceneRenderer sceneRenderer(deviceManager, ui, scenePath);
+        SceneRenderer sceneRenderer(deviceManager, ui, args);
         if (sceneRenderer.Init())
         {
             UserInterface userInterface(deviceManager, *sceneRenderer.GetRootFs(), ui);
@@ -500,5 +534,5 @@ int main(int argc, char** argv)
 
     delete deviceManager;
 
-    return 0;
+    return g_ExitCode;
 }

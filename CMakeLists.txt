@@ -124,6 +124,10 @@ add_subdirectory(Samples/IntermediateSample/Shaders)
 add_subdirectory(Samples/IntermediateSample/Source)
 add_subdirectory(Support/Tests/RtxdiRuntimeShaderTests)
 
+enable_testing()
+add_subdirectory(Support/Tests/Common)
+add_subdirectory(Support/Tests/SampleTests)
+
 if (MSVC)
 	set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT FullSample)
 endif()

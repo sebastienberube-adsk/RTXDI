@@ -205,7 +205,16 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     u_GBufferGeoNormals[pixelPosition] = ndirToOctUnorm32(primary.surface.geoNormal);
     u_GBufferDiffuseAlbedo[pixelPosition] = Pack_R11G11B10_UFLOAT(primary.surface.material.diffuseAlbedo);
     u_GBufferSpecularRough[pixelPosition] = Pack_R8G8B8A8_Gamma_UFLOAT(float4(primary.surface.material.specularF0, primary.surface.material.roughness));
-    
+
+    // Simulate the quantization roundtrip that occurs in the multi-pass architecture,
+    // where subsequent passes read the surface back from G-buffer textures.
+    primary.surface.normal = octToNdirUnorm32(ndirToOctUnorm32(primary.surface.normal));
+    primary.surface.geoNormal = octToNdirUnorm32(ndirToOctUnorm32(primary.surface.geoNormal));
+    primary.surface.material.diffuseAlbedo = Unpack_R11G11B10_UFLOAT(Pack_R11G11B10_UFLOAT(primary.surface.material.diffuseAlbedo)).rgb;
+    float4 quantizedSpecRough = Unpack_R8G8B8A8_Gamma_UFLOAT(Pack_R8G8B8A8_Gamma_UFLOAT(float4(primary.surface.material.specularF0, primary.surface.material.roughness)));
+    primary.surface.material.specularF0 = quantizedSpecRough.rgb;
+    primary.surface.material.roughness = quantizedSpecRough.a;
+    primary.surface.diffuseProbability = getSurfaceDiffuseProbability(primary.surface);
 
     RTXDI_DIReservoir reservoir = RTXDI_EmptyDIReservoir();
 

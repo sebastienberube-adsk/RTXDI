@@ -13,7 +13,7 @@
 #include <donut/core/math/math.h>
 #include <nvrhi/nvrhi.h>
 #include <memory>
-#include "Rtxdi/DI/ReSTIRDIParameters.h"
+#include <Rtxdi/DI/ReSTIRDI.h>
 
 namespace donut::engine
 {
@@ -39,8 +39,8 @@ class LightingPasses
 public:
     struct Settings
     {
+        rtxdi::ReSTIRDI_ResamplingMode resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial;
         bool unbiasedMode = false;
-        bool enableResampling = true;
 
         uint32_t numInitialSamples = 8;
         uint32_t numSpatialSamples = 1;
@@ -83,6 +83,8 @@ private:
     nvrhi::ComputePipelineHandle m_DITemporalResamplingPipeline;
     nvrhi::ShaderHandle m_DISpatialResamplingShader;
     nvrhi::ComputePipelineHandle m_DISpatialResamplingPipeline;
+    nvrhi::ShaderHandle m_DIFusedResamplingShader;
+    nvrhi::ComputePipelineHandle m_DIFusedResamplingPipeline;
     nvrhi::ShaderHandle m_RenderShader;
     nvrhi::ComputePipelineHandle m_RenderPipeline;
 

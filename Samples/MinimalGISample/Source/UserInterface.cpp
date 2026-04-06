@@ -74,7 +74,12 @@ void UserInterface::buildUI()
         
         ImGui::Separator();
 
-        ImGui::Checkbox("Enable Resampling", &m_ui.lightingSettings.enableResampling);
+        ImGui::Combo("Resampling Mode", (int*)&m_ui.lightingSettings.resamplingMode,
+            "None\0"
+            "Temporal\0"
+            "Spatial\0"
+            "Temporal + Spatial\0"
+            "Fused Spatiotemporal\0");
         ImGui::Checkbox("Unbiased Mode", &m_ui.lightingSettings.unbiasedMode);
 
         ImGui::SliderInt("Initial Samples", (int*)&m_ui.lightingSettings.numInitialSamples, 1, 32);

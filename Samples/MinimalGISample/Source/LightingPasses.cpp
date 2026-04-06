@@ -135,6 +135,7 @@ void LightingPasses::CreatePipeline()
     m_DIInitialSamplingShader = m_shaderFactory->CreateShader("app/DIGenerateInitialSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_DITemporalResamplingShader = m_shaderFactory->CreateShader("app/DITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_DISpatialResamplingShader = m_shaderFactory->CreateShader("app/DISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_DIFusedResamplingShader = m_shaderFactory->CreateShader("app/DIFusedResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_RenderShader = m_shaderFactory->CreateShader("app/DIShadeSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     nvrhi::ComputePipelineDesc pipelineDesc;
@@ -152,6 +153,9 @@ void LightingPasses::CreatePipeline()
     pipelineDesc.CS = m_DISpatialResamplingShader;
     m_DISpatialResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
 
+    pipelineDesc.CS = m_DIFusedResamplingShader;
+    m_DIFusedResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
     pipelineDesc.CS = m_RenderShader;
     m_RenderPipeline = m_device->createComputePipeline(pipelineDesc);
 }
@@ -164,9 +168,7 @@ void LightingPasses::Render(
     const Settings& localSettings,
     const RTXDI_LightBufferParameters& lightBufferParams)
 {
-    context.SetResamplingMode(localSettings.enableResampling
-        ? rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial
-        : rtxdi::ReSTIRDI_ResamplingMode::None);
+    context.SetResamplingMode(localSettings.resamplingMode);
 
     auto initialSamplingParams = context.GetInitialSamplingParameters();
     initialSamplingParams.numPrimaryLocalLightSamples = localSettings.numInitialSamples;
@@ -189,7 +191,7 @@ void LightingPasses::Render(
     view.FillPlanarViewConstants(constants.view);
     previousView.FillPlanarViewConstants(constants.prevView);
 
-    constants.enableResampling = localSettings.enableResampling;
+    constants.enableResampling = (localSettings.resamplingMode != rtxdi::ReSTIRDI_ResamplingMode::None);
     constants.lightBufferParams = lightBufferParams;
     constants.runtimeParams = context.GetRuntimeParams();
 
@@ -214,37 +216,60 @@ void LightingPasses::Render(
     commandList->dispatch(dispatchWidth, dispatchHeight);
     commandList->endMarker();
 
-    nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
+    const auto mode = localSettings.resamplingMode;
 
-    commandList->beginMarker("DIGenerateInitialSamples");
-    state.pipeline = m_DIInitialSamplingPipeline;
-    commandList->setComputeState(state);
-    commandList->dispatch(dispatchWidth, dispatchHeight);
-    commandList->endMarker();
+    if (mode == rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal)
+    {
+        nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
 
-    nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
+        commandList->beginMarker("DIFusedResampling");
+        state.pipeline = m_DIFusedResamplingPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+    }
+    else
+    {
+        nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
 
-    commandList->beginMarker("DITemporalResampling");
-    state.pipeline = m_DITemporalResamplingPipeline;
-    commandList->setComputeState(state);
-    commandList->dispatch(dispatchWidth, dispatchHeight);
-    commandList->endMarker();
+        commandList->beginMarker("DIGenerateInitialSamples");
+        state.pipeline = m_DIInitialSamplingPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
 
-    nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
+        if (mode == rtxdi::ReSTIRDI_ResamplingMode::Temporal ||
+            mode == rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial)
+        {
+            nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
 
-    commandList->beginMarker("DISpatialResampling");
-    state.pipeline = m_DISpatialResamplingPipeline;
-    commandList->setComputeState(state);
-    commandList->dispatch(dispatchWidth, dispatchHeight);
-    commandList->endMarker();
+            commandList->beginMarker("DITemporalResampling");
+            state.pipeline = m_DITemporalResamplingPipeline;
+            commandList->setComputeState(state);
+            commandList->dispatch(dispatchWidth, dispatchHeight);
+            commandList->endMarker();
+        }
 
-    nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
+        if (mode == rtxdi::ReSTIRDI_ResamplingMode::Spatial ||
+            mode == rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial)
+        {
+            nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
 
-    commandList->beginMarker("DIShadeSamples");
-    state.pipeline = m_RenderPipeline;
-    commandList->setComputeState(state);
-    commandList->dispatch(dispatchWidth, dispatchHeight);
-    commandList->endMarker();
+            commandList->beginMarker("DISpatialResampling");
+            state.pipeline = m_DISpatialResamplingPipeline;
+            commandList->setComputeState(state);
+            commandList->dispatch(dispatchWidth, dispatchHeight);
+            commandList->endMarker();
+        }
+
+        nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
+
+        commandList->beginMarker("DIShadeSamples");
+        state.pipeline = m_RenderPipeline;
+        commandList->setComputeState(state);
+        commandList->dispatch(dispatchWidth, dispatchHeight);
+        commandList->endMarker();
+    }
 }
 
 void LightingPasses::NextFrame()

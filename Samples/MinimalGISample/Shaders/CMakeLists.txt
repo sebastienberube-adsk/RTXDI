@@ -29,8 +29,8 @@ set(shaders
    DITemporalResampling.hlsl
    GBufferPass.hlsl
    PrepareLights.hlsl
+   DIShadeSamples.hlsl
    PrimaryRays.hlsli
-   Render.hlsl
    SceneGeometry.hlsli
    ShaderParameters.h
    TriangleLight.hlsli)

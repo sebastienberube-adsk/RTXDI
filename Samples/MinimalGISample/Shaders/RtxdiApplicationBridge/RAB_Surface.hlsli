@@ -59,37 +59,58 @@ float getSurfaceDiffuseProbability(RAB_Surface surface)
     return sumWeights < 1e-7f ? 1.f : (diffuseWeight / sumWeights);
 }
 
-// Load a sample from the previous G-buffer.
 RAB_Surface RAB_GetGBufferSurface(int2 pixelPosition, bool previousFrame)
 {
     RAB_Surface surface = RAB_EmptySurface();
 
-    // We do not have access to the current G-buffer in this sample because it's using
-    // a single render pass with a fused resampling kernel, so just return an invalid surface.
-    // This should never happen though, as the fused kernel doesn't call RAB_GetGBufferSurface(..., false)
-    if (!previousFrame)
-        return surface;
+    if (previousFrame)
+    {
+        const PlanarViewConstants view = g_Const.prevView;
 
-    const PlanarViewConstants view = g_Const.prevView;
+        if (any(pixelPosition >= view.viewportSize))
+            return surface;
 
-    if (any(pixelPosition >= view.viewportSize))
-        return surface;
+        surface.viewDepth = t_PrevGBufferDepth[pixelPosition];
 
-    surface.viewDepth = t_PrevGBufferDepth[pixelPosition];
+        if(surface.viewDepth == BACKGROUND_DEPTH)
+            return surface;
 
-    if(surface.viewDepth == BACKGROUND_DEPTH)
-        return surface;
+        surface.normal = octToNdirUnorm32(t_PrevGBufferNormals[pixelPosition]);
+        surface.geoNormal = octToNdirUnorm32(t_PrevGBufferGeoNormals[pixelPosition]);
 
-    surface.normal = octToNdirUnorm32(t_PrevGBufferNormals[pixelPosition]);
-    surface.geoNormal = octToNdirUnorm32(t_PrevGBufferGeoNormals[pixelPosition]);
+        surface.material.diffuseAlbedo = Unpack_R11G11B10_UFLOAT(t_PrevGBufferDiffuseAlbedo[pixelPosition]).rgb;
+        float4 specularRough = Unpack_R8G8B8A8_Gamma_UFLOAT(t_PrevGBufferSpecularRough[pixelPosition]);
+        surface.material.roughness = specularRough.a;
+        surface.material.specularF0 = specularRough.rgb;
 
-    surface.material.diffuseAlbedo = Unpack_R11G11B10_UFLOAT(t_PrevGBufferDiffuseAlbedo[pixelPosition]).rgb;
-    float4 specularRough = Unpack_R8G8B8A8_Gamma_UFLOAT(t_PrevGBufferSpecularRough[pixelPosition]);
-    surface.material.roughness = specularRough.a;
-    surface.material.specularF0 = specularRough.rgb;
-    surface.worldPos = viewDepthToWorldPos(view, pixelPosition, surface.viewDepth);
-    surface.viewDir = normalize(g_Const.prevView.cameraDirectionOrPosition.xyz - surface.worldPos);
-    surface.diffuseProbability = getSurfaceDiffuseProbability(surface);
+        surface.worldPos = viewDepthToWorldPos(view, pixelPosition, surface.viewDepth);
+        surface.viewDir = normalize(g_Const.prevView.cameraDirectionOrPosition.xyz - surface.worldPos);
+        surface.diffuseProbability = getSurfaceDiffuseProbability(surface);
+    }
+    else
+    {
+        const PlanarViewConstants view = g_Const.view;
+
+        if (any(pixelPosition >= view.viewportSize))
+            return surface;
+
+        surface.viewDepth = u_GBufferDepth[pixelPosition];
+
+        if(surface.viewDepth == BACKGROUND_DEPTH)
+            return surface;
+
+        surface.normal = octToNdirUnorm32(u_GBufferNormals[pixelPosition]);
+        surface.geoNormal = octToNdirUnorm32(u_GBufferGeoNormals[pixelPosition]);
+
+        surface.material.diffuseAlbedo = Unpack_R11G11B10_UFLOAT(u_GBufferDiffuseAlbedo[pixelPosition]).rgb;
+        float4 specularRough = Unpack_R8G8B8A8_Gamma_UFLOAT(u_GBufferSpecularRough[pixelPosition]);
+        surface.material.roughness = specularRough.a;
+        surface.material.specularF0 = specularRough.rgb;
+
+        surface.worldPos = viewDepthToWorldPos(view, pixelPosition, surface.viewDepth);
+        surface.viewDir = normalize(view.cameraDirectionOrPosition.xyz - surface.worldPos);
+        surface.diffuseProbability = getSurfaceDiffuseProbability(surface);
+    }
 
     return surface;
 }

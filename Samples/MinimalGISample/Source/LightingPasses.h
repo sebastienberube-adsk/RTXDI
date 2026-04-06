@@ -41,9 +41,12 @@ public:
     {
         rtxdi::ReSTIRDI_ResamplingMode resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial;
         bool unbiasedMode = false;
+        bool discardInvisibleSamples = true;
+        bool enableMaterialSimilarityTest = true;
 
         uint32_t numInitialSamples = 8;
         uint32_t numSpatialSamples = 1;
+        uint32_t numDisocclusionBoostSamples = 0;
         uint32_t numInitialBRDFSamples = 1;
         float brdfCutoff = 0.f;
     };

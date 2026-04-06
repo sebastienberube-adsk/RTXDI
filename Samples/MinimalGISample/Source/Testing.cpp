@@ -76,6 +76,7 @@ void ProcessCommandLine(int argc, char** argv,
         ("height", "Render height override", value(args.renderHeight))
         ("direct-resampling", "Direct lighting resampling mode: NONE, TEMPORAL, SPATIAL, TEMPORAL_SPATIAL, FUSED", value(ui.lightingSettings.resamplingMode))
         ("disable-gi", "Disable ReSTIR GI (DI only)", value<bool>())
+        ("minimal-sample-compatibility-mode", "Configure settings to match MinimalSample output for testing", value<bool>())
         ;
 
     auto result = options.parse(argc, argv);
@@ -94,6 +95,16 @@ void ProcessCommandLine(int argc, char** argv,
     if (result.count("disable-gi"))
     {
         args.disableGI = true;
+    }
+
+    if (result.count("minimal-sample-compatibility-mode"))
+    {
+        // Match MinimalSample's fused spatiotemporal resampling path
+        ui.lightingSettings.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
+        ui.lightingSettings.discardInvisibleSamples = true;
+        ui.lightingSettings.numDisocclusionBoostSamples = 0;
+        // MinimalSample does not set enableMaterialSimilarityTest (defaults to false)
+        ui.lightingSettings.enableMaterialSimilarityTest = false;
     }
 
     if (args.renderWidth > 0 && args.renderHeight > 0)

@@ -180,12 +180,12 @@ void LightingPasses::Render(
     temporalParams.temporalBiasCorrection = localSettings.unbiasedMode
         ? ReSTIRDI_TemporalBiasCorrectionMode::Raytraced
         : ReSTIRDI_TemporalBiasCorrectionMode::Basic;
-    temporalParams.discardInvisibleSamples = true;
+    temporalParams.discardInvisibleSamples = localSettings.discardInvisibleSamples;
     context.SetTemporalResamplingParameters(temporalParams);
 
     auto spatialParams = context.GetSpatialResamplingParameters();
     spatialParams.numSpatialSamples = localSettings.numSpatialSamples;
-    spatialParams.numDisocclusionBoostSamples = 0;
+    spatialParams.numDisocclusionBoostSamples = localSettings.numDisocclusionBoostSamples;
     context.SetSpatialResamplingParameters(spatialParams);
 
     ResamplingConstants constants = {};
@@ -194,6 +194,7 @@ void LightingPasses::Render(
     previousView.FillPlanarViewConstants(constants.prevView);
 
     constants.enableResampling = (localSettings.resamplingMode != rtxdi::ReSTIRDI_ResamplingMode::None);
+    constants.enableMaterialSimilarityTest = localSettings.enableMaterialSimilarityTest;
     constants.lightBufferParams = lightBufferParams;
     constants.runtimeParams = context.GetRuntimeParams();
 

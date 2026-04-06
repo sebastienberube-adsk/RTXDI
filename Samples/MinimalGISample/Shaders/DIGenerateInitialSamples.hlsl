@@ -72,7 +72,8 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
 
         RTXDI_FinalizeResampling(reservoir, 1.0, 1.0);
         reservoir.M = 1;
-
+        
+        // Note: enableInitialVisibility option is not offered in the original MinimalSample
         if (g_Const.restirDI.initialSamplingParams.enableInitialVisibility
             && RTXDI_IsValidDIReservoir(reservoir) && !selectBrdf)
         {

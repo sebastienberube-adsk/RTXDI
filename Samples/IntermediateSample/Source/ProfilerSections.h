@@ -33,7 +33,6 @@ struct ProfilerSection
         GIFusedResampling,
         GIFinalShading,
         Gradients,
-        Denoising,
         Glass,
         Resolve,
         Frame,

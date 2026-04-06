@@ -74,14 +74,6 @@ float4 main(float4 i_position : SV_Position) : SV_Target
         input = calcLuminance(t_Specular[inputPos].rgb);
         break;
         
-    case VIS_MODE_DENOISED_DIFFUSE:
-        input = calcLuminance(t_DenoisedDiffuse[inputPos].rgb);
-        break;
-        
-    case VIS_MODE_DENOISED_SPECULAR:
-        input = calcLuminance(t_DenoisedSpecular[inputPos].rgb);
-        break;
-        
     case VIS_MODE_RESERVOIR_WEIGHT: {
         RTXDI_DIReservoir reservoir = RTXDI_LoadDIReservoir(g_Const.restirDIReservoirBufferParams, reservoirPos, g_Const.inputBufferIndex);
         input = reservoir.weightSum;

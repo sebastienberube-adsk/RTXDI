@@ -44,11 +44,6 @@ class EnvironmentLight;
 struct ResamplingConstants;
 struct GBufferSettings;
 
-namespace nrd
-{
-    struct HitDistanceParameters;
-}
-
 // A 32-bit bool type to directly use from the command line parser.
 typedef int ibool;
 
@@ -69,17 +64,7 @@ public:
         ibool enableRayCounts = true;
         ibool visualizeRegirCells = false;
         
-        ibool enableGradients = true;
-        float gradientLogDarknessBias = -12.f;
-        float gradientSensitivity = 8.f;
-        float confidenceHistoryLength = 0.75f;
-
         BRDFPathTracing_Parameters brdfptParams = GetDefaultBRDFPathTracingParams();
-        
-#if WITH_NRD
-        const nrd::HitDistanceParameters* reblurDiffHitDistanceParams = nullptr;
-        const nrd::HitDistanceParameters* reblurSpecHitDistanceParams = nullptr;
-#endif
     };
 
     LightingPasses(
@@ -169,7 +154,6 @@ private:
     RayTracingPass m_brdfRayTracingPass;
     RayTracingPass m_shadeSecondarySurfacesPass;
     RayTracingPass m_fusedResamplingPass;
-    RayTracingPass m_gradientsPass;
     RayTracingPass m_GITemporalResamplingPass;
     RayTracingPass m_GISpatialResamplingPass;
     RayTracingPass m_GIFusedResamplingPass;

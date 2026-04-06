@@ -43,10 +43,6 @@ std::istream& operator>> (std::istream& is, AntiAliasingMode& mode)
         mode = AntiAliasingMode::Accumulation;
     else if (s == "TAA")
         mode = AntiAliasingMode::TAA;
-#if WITH_DLSS
-    else if (s == "DLSS")
-        mode = AntiAliasingMode::DLSS;
-#endif
     else
         throw cxxopts::exceptions::exception("Unrecognized value passed to the --aa-mode argument.");
     
@@ -172,10 +168,8 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
     bool help = false;
     bool useVk = false;
     ibool checkerboard = false;
-    std::string denoiserMode;
-
     options.add_options()
-        ("aa-mode", "Anti-aliasing mode: OFF, ACC, TAA, DLSS (if supported)", value(ui.aaMode))
+        ("aa-mode", "Anti-aliasing mode: OFF, ACC, TAA", value(ui.aaMode))
         ("alpha-tested", "Alpha-tested materials toggle", value(ui.gbufferSettings.enableAlphaTestedGeometry))
         ("animation", "Animations toggle", value(ui.enableAnimations))
         ("benchmark", "Run the benchmark", value(args.benchmark))
@@ -188,7 +182,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("h,help", "Display this help message", value(help))
         ("height", "Window height", value(deviceParams.backBufferHeight))
         ("indirect-resampling", "ReSTIR GI resampling mode: NONE, TEMPORAL, SPATIAL, TEMPORAL_SPATIAL, FUSED", value(ui.restirGI.resamplingMode))
-        ("noise-mix", "Amount of noise to mix in after denoising", value(ui.noiseMix))
+        ("noise-mix", "Amount of noise to mix in", value(ui.noiseMix))
         ("pixel-jitter", "Pixel jitter toggle", value(ui.enablePixelJitter))
         ("preset", "Rendering settings preset: FAST, MEDIUM, UNBIASED, ULTRA, REFERENCE", value(ui))
         ("rasterize-gbuffer", "G-buffer rasterization toggle", value(ui.rasterizeGBuffer))
@@ -199,18 +193,13 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("render-height", "Internal render target height, overrides window size", value(args.renderHeight))
         ("save-file", "Save frame to file and exit", value(args.saveFrameFileName))
         ("save-frame", "Index of the frame to save, default is 0", value(args.saveFrameIndex))
+        ("scene", "Scene file path (VFS path, e.g. /Assets/Media/arcade.scene.json or /Assets/Media/Arcade/Arcade.gltf)", value(args.scenePath))
         ("tone-mapping", "Tone mapping toggle", value(ui.enableToneMapping))
         ("transparent", "Transparent materials toggle", value(ui.gbufferSettings.enableTransparentGeometry))
         ("verbose", "Enable debug log messages", value(args.verbose))
         ("vk", "Run the application using Vulkan (otherwise D3D12 if supported)", value(useVk))
         ("width", "Window width", value(deviceParams.backBufferWidth))
     ;
-
-#if WITH_NRD
-    options.add_options()
-        ("denoiser", "Denoiser: OFF, REBLUR, RELAX", value(denoiserMode))
-    ;
-#endif
 
     try
     {
@@ -226,22 +215,6 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
             exit(0);
         }
         
-        if (!denoiserMode.empty())
-        {
-#if WITH_NRD
-            std::transform(denoiserMode.begin(), denoiserMode.end(), denoiserMode.begin(),
-                [](unsigned char c) { return std::toupper(c); });
-
-            if (denoiserMode == "OFF")
-                ui.enableDenoiser = false;
-            else if (denoiserMode == "REBLUR")
-                ui.denoisingMethod = nrd::Denoiser::REBLUR_DIFFUSE_SPECULAR;
-            else if (denoiserMode == "RELAX")
-                ui.denoisingMethod = nrd::Denoiser::RELAX_DIFFUSE_SPECULAR;
-            else
-                throw cxxopts::exceptions::exception("Unrecognized value passed to the --denoiser argument.");
-#endif
-        }
     }
     catch (const std::exception& e)
     {

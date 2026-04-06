@@ -132,6 +132,7 @@ void LightingPasses::CreateBindingSet(
 void LightingPasses::CreatePipeline()
 {
     m_GBufferPassShader = m_shaderFactory->CreateShader("app/GBufferPass.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_DIInitialSamplingShader = m_shaderFactory->CreateShader("app/DIGenerateInitialSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_RenderShader = m_shaderFactory->CreateShader("app/Render.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     nvrhi::ComputePipelineDesc pipelineDesc;
@@ -139,6 +140,9 @@ void LightingPasses::CreatePipeline()
 
     pipelineDesc.CS = m_GBufferPassShader;
     m_GBufferPassPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_DIInitialSamplingShader;
+    m_DIInitialSamplingPipeline = m_device->createComputePipeline(pipelineDesc);
 
     pipelineDesc.CS = m_RenderShader;
     m_RenderPipeline = m_device->createComputePipeline(pipelineDesc);
@@ -198,6 +202,14 @@ void LightingPasses::Render(
 
     commandList->beginMarker("GBufferPass");
     state.pipeline = m_GBufferPassPipeline;
+    commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
+    commandList->endMarker();
+
+    nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
+
+    commandList->beginMarker("DIGenerateInitialSamples");
+    state.pipeline = m_DIInitialSamplingPipeline;
     commandList->setComputeState(state);
     commandList->dispatch(dispatchWidth, dispatchHeight);
     commandList->endMarker();

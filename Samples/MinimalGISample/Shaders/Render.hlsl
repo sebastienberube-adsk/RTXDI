@@ -14,57 +14,28 @@
 
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"
 
-#include <Rtxdi/DI/InitialSampling.hlsli>
 #include <Rtxdi/DI/SpatioTemporalResampling.hlsli>
 
 [numthreads(RTXDI_SCREEN_SPACE_GROUP_SIZE, RTXDI_SCREEN_SPACE_GROUP_SIZE, 1)]
 void main(uint2 pixelPosition : SV_DispatchThreadID)
 {
-    const RTXDI_LightBufferParameters lightBufferParams = g_Const.lightBufferParams;
-
     RAB_Surface surface = RAB_GetGBufferSurface(pixelPosition, false);
 
     float3 motionVector = u_MotionVectors[pixelPosition].xyz;
     float3 emissiveColor = u_Emissive[pixelPosition].rgb;
 
-    RTXDI_DIReservoir reservoir = RTXDI_EmptyDIReservoir();
+    RTXDI_DIReservoir reservoir = RTXDI_LoadDIReservoir(g_Const.restirDI.reservoirBufferParams,
+        pixelPosition, g_Const.restirDI.bufferIndices.initialSamplingOutputBufferIndex);
 
     if (RAB_IsSurfaceValid(surface))
     {
-        RAB_RandomSamplerState rng = RAB_InitRandomSampler(pixelPosition, 1);
-
-        RTXDI_SampleParameters sampleParams = RTXDI_InitSampleParameters(
-            g_Const.restirDI.initialSamplingParams.numPrimaryLocalLightSamples,
-            0, 0,
-            g_Const.restirDI.initialSamplingParams.numPrimaryBrdfSamples,
-            g_Const.restirDI.initialSamplingParams.brdfCutoff,
-            0.001f);
+        RAB_RandomSamplerState rng = RAB_InitRandomSampler(pixelPosition, 2);
 
         RAB_LightSample lightSample = RAB_EmptyLightSample();
-
-        RTXDI_DIReservoir localReservoir = RTXDI_SampleLocalLights(rng, rng, surface,
-            sampleParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM, lightBufferParams.localLightBufferRegion, lightSample);
-
-        RTXDI_CombineDIReservoirs(reservoir, localReservoir, 0.5, localReservoir.targetPdf);
-
-        RAB_LightSample brdfSample = RAB_EmptyLightSample();
-        RTXDI_DIReservoir brdfReservoir = RTXDI_SampleBrdf(rng, surface, sampleParams, lightBufferParams, brdfSample);
-
-        bool selectBrdf = RTXDI_CombineDIReservoirs(reservoir, brdfReservoir, RAB_GetNextRandom(rng), brdfReservoir.targetPdf);
-        if (selectBrdf)
+        if (RTXDI_IsValidDIReservoir(reservoir))
         {
-            lightSample = brdfSample;
-        }
-
-        RTXDI_FinalizeResampling(reservoir, 1.0, 1.0);
-        reservoir.M = 1;
-
-        if (RTXDI_IsValidDIReservoir(reservoir) && !selectBrdf)
-        {
-            if (!RAB_GetConservativeVisibility(surface, lightSample))
-            {
-                RTXDI_StoreVisibilityInDIReservoir(reservoir, 0, true);
-            }
+            RAB_LightInfo lightInfo = RAB_LoadLightInfo(RTXDI_GetDIReservoirLightIndex(reservoir), false);
+            lightSample = RAB_SamplePolymorphicLight(lightInfo, surface, RTXDI_GetDIReservoirSampleUV(reservoir));
         }
 
         if (g_Const.enableResampling)
@@ -72,7 +43,7 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
             RTXDI_DISpatioTemporalResamplingParameters stparams;
             stparams.screenSpaceMotion = motionVector;
             stparams.sourceBufferIndex = g_Const.restirDI.bufferIndices.temporalResamplingInputBufferIndex;
-            stparams.maxHistoryLength = 20;
+            stparams.maxHistoryLength = g_Const.restirDI.temporalResamplingParams.maxHistoryLength;
             stparams.biasCorrectionMode = g_Const.restirDI.temporalResamplingParams.temporalBiasCorrection;
             stparams.depthThreshold = g_Const.restirDI.temporalResamplingParams.temporalDepthThreshold;
             stparams.normalThreshold = g_Const.restirDI.temporalResamplingParams.temporalNormalThreshold;

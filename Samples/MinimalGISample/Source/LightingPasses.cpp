@@ -134,6 +134,7 @@ void LightingPasses::CreatePipeline()
     m_GBufferPassShader = m_shaderFactory->CreateShader("app/GBufferPass.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_DIInitialSamplingShader = m_shaderFactory->CreateShader("app/DIGenerateInitialSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_DITemporalResamplingShader = m_shaderFactory->CreateShader("app/DITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_DISpatialResamplingShader = m_shaderFactory->CreateShader("app/DISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_RenderShader = m_shaderFactory->CreateShader("app/Render.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     nvrhi::ComputePipelineDesc pipelineDesc;
@@ -147,6 +148,9 @@ void LightingPasses::CreatePipeline()
 
     pipelineDesc.CS = m_DITemporalResamplingShader;
     m_DITemporalResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_DISpatialResamplingShader;
+    m_DISpatialResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
 
     pipelineDesc.CS = m_RenderShader;
     m_RenderPipeline = m_device->createComputePipeline(pipelineDesc);
@@ -228,7 +232,15 @@ void LightingPasses::Render(
 
     nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
 
-    commandList->beginMarker("Render");
+    commandList->beginMarker("DISpatialResampling");
+    state.pipeline = m_DISpatialResamplingPipeline;
+    commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
+    commandList->endMarker();
+
+    nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
+
+    commandList->beginMarker("DIShadeSamples");
     state.pipeline = m_RenderPipeline;
     commandList->setComputeState(state);
     commandList->dispatch(dispatchWidth, dispatchHeight);

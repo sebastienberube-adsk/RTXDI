@@ -9,6 +9,7 @@
  **************************************************************************/
 
 #include "Testing.h"
+#include "UserInterface.h"
 
 #include <donut/app/DeviceManager.h>
 #include <donut/core/log.h>
@@ -20,12 +21,44 @@
 using namespace donut;
 namespace fs = std::filesystem;
 
+static void toupper(std::string& s)
+{
+    std::transform(s.begin(), s.end(), s.begin(),
+        [](unsigned char c) { return std::toupper(c); });
+}
+
+namespace rtxdi
+{
+std::istream& operator>> (std::istream& is, ReSTIRDI_ResamplingMode& mode)
+{
+    std::string s;
+    is >> s;
+    toupper(s);
+
+    if (s == "NONE")
+        mode = rtxdi::ReSTIRDI_ResamplingMode::None;
+    else if (s == "TEMPORAL")
+        mode = rtxdi::ReSTIRDI_ResamplingMode::Temporal;
+    else if (s == "SPATIAL")
+        mode = rtxdi::ReSTIRDI_ResamplingMode::Spatial;
+    else if (s == "TEMPORAL_SPATIAL")
+        mode = rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial;
+    else if (s == "FUSED")
+        mode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
+    else
+        throw cxxopts::exceptions::exception("Unrecognized value passed to the --direct-resampling argument.");
+
+    return is;
+}
+}
+
 // ---------------------------------------------------------------------------
 // Command-line processing
 // ---------------------------------------------------------------------------
 
 void ProcessCommandLine(int argc, char** argv,
     donut::app::DeviceCreationParameters& deviceParams,
+    UIData& ui,
     CommandLineArguments& args)
 {
     using namespace cxxopts;
@@ -41,6 +74,7 @@ void ProcessCommandLine(int argc, char** argv,
         ("scene", "Scene file path (VFS path, e.g. /Assets/Media/Arcade/Arcade.gltf)", value(args.scenePath))
         ("width", "Render width override", value(args.renderWidth))
         ("height", "Render height override", value(args.renderHeight))
+        ("direct-resampling", "Direct lighting resampling mode: NONE, TEMPORAL, SPATIAL, TEMPORAL_SPATIAL, FUSED", value(ui.lightingSettings.resamplingMode))
         ("disable-gi", "Disable ReSTIR GI (DI only)", value<bool>())
         ;
 

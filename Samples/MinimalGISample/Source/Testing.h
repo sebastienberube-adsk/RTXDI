@@ -38,4 +38,5 @@ struct CommandLineArguments
 
 void ProcessCommandLine(int argc, char** argv,
     donut::app::DeviceCreationParameters& deviceParams,
+    UIData& ui,
     CommandLineArguments& args);

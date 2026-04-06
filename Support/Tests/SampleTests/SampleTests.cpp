@@ -249,7 +249,9 @@ TEST(SampleImageTests, MinimalDI_vs_MinimalGI_DI)
     fs::path outB = GetOutputDir() / "MinimalGISample_DI.bmp";
 
     ASSERT_EQ(RunSample("MinimalSample", "", outA, 64), 0) << "MinimalSample failed to run";
-    ASSERT_EQ(RunSample("MinimalGISample", "--disable-gi", outB, 64), 0) << "MinimalGISample failed to run";
+    // Note: FUSED Spatiotemporal resampling is used in the MinimalSample. Since it affects the final result
+    //       (it appears to makes the Brdf Samples a bit brighter), make sure to use that resampling mode for both.
+    ASSERT_EQ(RunSample("MinimalGISample", "--direct-resampling FUSED", outB, 64), 0) << "MinimalGISample failed to run";
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalDI vs MinimalGI_DI"));
 }
 

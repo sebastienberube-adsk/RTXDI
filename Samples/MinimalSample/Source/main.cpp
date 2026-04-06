@@ -49,10 +49,11 @@ using namespace std::chrono;
 class SceneRenderer : public app::ApplicationBase
 {
 public:
-    SceneRenderer(app::DeviceManager* deviceManager, UIData& ui)
+    SceneRenderer(app::DeviceManager* deviceManager, UIData& ui, const std::string& scenePath)
         : ApplicationBase(deviceManager)
         , m_bindingCache(deviceManager->GetDevice())
         , m_ui(ui)
+        , m_scenePath(scenePath)
     { 
     }
 
@@ -107,7 +108,9 @@ public:
             m_bindlessLayout = GetDevice()->createBindlessLayout(bindlessLayoutDesc);
         }
 
-        std::filesystem::path scenePath = "/Assets/Media/Arcade/Arcade.gltf";
+        std::filesystem::path scenePath = m_scenePath.empty()
+            ? "/Assets/Media/Arcade/Arcade.gltf"
+            : m_scenePath;
 
         m_descriptorTableManager = std::make_shared<engine::DescriptorTableManager>(GetDevice(), m_bindlessLayout);
 
@@ -131,14 +134,49 @@ public:
         return true;
     }
     
+    void InitCameraFromScene()
+    {
+        auto* root = m_scene->GetSceneGraph()->GetRootNode().get();
+        for (size_t i = 0; i < root->GetNumChildren() && !m_cameraInitialized; i++)
+            InitCameraFromNode(root->GetChild(i));
+
+        if (!m_cameraInitialized)
+        {
+            if (m_scenePath.empty())
+                m_camera.LookAt(float3(-1.658f, 1.577f, 1.69f), float3(-0.9645f, 1.2672f, 1.0396f));
+            else
+                m_camera.LookAt(float3(0.f, 1.5f, 3.f), float3(0.f, 1.0f, 0.f));
+        }
+        m_camera.SetMoveSpeed(3.f);
+    }
+
+    void InitCameraFromNode(engine::SceneGraphNode* node)
+    {
+        if (m_cameraInitialized || !node)
+            return;
+
+        auto camera = std::dynamic_pointer_cast<engine::PerspectiveCamera>(node->GetLeaf());
+        if (camera)
+        {
+            dm::affine3 viewToWorld = camera->GetViewToWorldMatrix();
+            float3 pos = float3(viewToWorld.m_translation);
+            float3 forward = float3(-viewToWorld.m_linear.row2);
+            m_camera.LookAt(pos, pos + forward);
+            m_cameraInitialized = true;
+            return;
+        }
+
+        for (size_t i = 0; i < node->GetNumChildren() && !m_cameraInitialized; i++)
+            InitCameraFromNode(node->GetChild(i));
+    }
+
     void SceneLoaded() override
     {
         ApplicationBase::SceneLoaded();
 
         m_scene->FinishedLoading(GetFrameIndex());
         
-        m_camera.LookAt(float3(-1.658f, 1.577f, 1.69f), float3(-0.9645f, 1.2672f, 1.0396f));
-        m_camera.SetMoveSpeed(3.f);
+        InitCameraFromScene();
         
         m_scene->BuildMeshBLASes(GetDevice());
 
@@ -363,9 +401,11 @@ private:
     std::unique_ptr<RtxdiResources> m_rtxdiResources;
 
     UIData& m_ui;
+    std::string m_scenePath;
+    bool m_cameraInitialized = false;
 };
 
-void ProcessCommandLine(int argc, char** argv, app::DeviceCreationParameters& deviceParams, nvrhi::GraphicsAPI& api)
+void ProcessCommandLine(int argc, char** argv, app::DeviceCreationParameters& deviceParams, nvrhi::GraphicsAPI& api, std::string& scenePath)
 {
     for (int i = 1; i < argc; i++)
     {
@@ -377,6 +417,10 @@ void ProcessCommandLine(int argc, char** argv, app::DeviceCreationParameters& de
         else if (strcmp(argv[i], "--vk") == 0)
         {
             api = nvrhi::GraphicsAPI::VULKAN;
+        }
+        else if (strcmp(argv[i], "--scene") == 0 && i + 1 < argc)
+        {
+            scenePath = argv[++i];
         }
         else
         {
@@ -401,6 +445,7 @@ int main(int argc, char** argv)
     deviceParams.infoLogSeverity = log::Severity::Debug;
 
     UIData ui;
+    std::string scenePath;
 #if DONUT_WITH_DX12
     nvrhi::GraphicsAPI api = nvrhi::GraphicsAPI::D3D12;
 #else
@@ -408,9 +453,9 @@ int main(int argc, char** argv)
 #endif
 
 #if defined(_WIN32)
-    ProcessCommandLine(__argc, __argv, deviceParams, api);
+    ProcessCommandLine(__argc, __argv, deviceParams, api, scenePath);
 #else
-    ProcessCommandLine(argc, argv, deviceParams, api);
+    ProcessCommandLine(argc, argv, deviceParams, api, scenePath);
 #endif
 
     app::DeviceManager* deviceManager = app::DeviceManager::Create(api);
@@ -436,7 +481,7 @@ int main(int argc, char** argv)
     }
 
     {
-        SceneRenderer sceneRenderer(deviceManager, ui);
+        SceneRenderer sceneRenderer(deviceManager, ui, scenePath);
         if (sceneRenderer.Init())
         {
             UserInterface userInterface(deviceManager, *sceneRenderer.GetRootFs(), ui);

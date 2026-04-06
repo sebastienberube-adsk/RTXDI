@@ -140,7 +140,9 @@ public:
             m_bindlessLayout = GetDevice()->createBindlessLayout(bindlessLayoutDesc);
         }
 
-        std::filesystem::path scenePath = "/Assets/Media/bistro-rtxdi.scene.json";
+        std::filesystem::path scenePath = m_args.scenePath.empty()
+            ? "/Assets/Media/bistro-rtxdi.scene.json"
+            : m_args.scenePath;
 
         m_descriptorTableManager = std::make_shared<engine::DescriptorTableManager>(GetDevice(), m_bindlessLayout);
 
@@ -236,16 +238,58 @@ public:
         }
     }
 
+    void InitCameraFromScene(const std::shared_ptr<engine::SceneGraph>& sceneGraph)
+    {
+        if (!m_args.scenePath.empty())
+        {
+            auto* root = sceneGraph->GetRootNode().get();
+            for (size_t i = 0; i < root->GetNumChildren() && !m_cameraInitialized; i++)
+            {
+                InitCameraFromNode(root->GetChild(i));
+            }
+        }
+
+        if (!m_cameraInitialized)
+        {
+            if (m_args.scenePath.empty())
+                m_camera.LookAt(float3(-7.688f, 2.0f, 5.594f), float3(-7.3341f, 2.0f, 6.5366f));
+            else
+                m_camera.LookAt(float3(0.f, 1.5f, 3.f), float3(0.f, 1.0f, 0.f));
+        }
+        m_camera.SetMoveSpeed(3.f);
+    }
+
+    void InitCameraFromNode(engine::SceneGraphNode* node)
+    {
+        if (m_cameraInitialized || !node)
+            return;
+
+        auto camera = std::dynamic_pointer_cast<engine::PerspectiveCamera>(node->GetLeaf());
+        if (camera && node->GetName() != "Benchmark")
+        {
+            dm::affine3 viewToWorld = camera->GetViewToWorldMatrix();
+            float3 pos = float3(viewToWorld.m_translation);
+            float3 forward = float3(-viewToWorld.m_linear.row2);
+            m_camera.LookAt(pos, pos + forward);
+            m_cameraInitialized = true;
+            return;
+        }
+
+        for (size_t i = 0; i < node->GetNumChildren() && !m_cameraInitialized; i++)
+        {
+            InitCameraFromNode(node->GetChild(i));
+        }
+    }
+
     virtual void SceneLoaded() override
     {
         ApplicationBase::SceneLoaded();
 
         m_scene->FinishedLoading(GetFrameIndex());
 
-        m_camera.LookAt(float3(-7.688f, 2.0f, 5.594f), float3(-7.3341f, 2.0f, 6.5366f));
-        m_camera.SetMoveSpeed(3.f);
-
         const auto& sceneGraph = m_scene->GetSceneGraph();
+
+        InitCameraFromScene(sceneGraph);
 
         for (const auto& pLight : sceneGraph->GetLights())
         {
@@ -1487,6 +1531,7 @@ private:
     CommandLineArguments& m_args;
     uint m_framesSinceAnimation = 0;
     bool m_previousViewValid = false;
+    bool m_cameraInitialized = false;
     time_point<steady_clock> m_previousFrameTimeStamp;
 
     std::vector<std::shared_ptr<engine::IesProfile>> m_iesProfiles;

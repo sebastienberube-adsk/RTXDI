@@ -107,7 +107,9 @@ public:
             m_bindlessLayout = GetDevice()->createBindlessLayout(bindlessLayoutDesc);
         }
 
-        std::filesystem::path scenePath = "/Assets/Media/Arcade/Arcade.gltf";
+        std::filesystem::path scenePath = m_args.scenePath.empty()
+            ? "/Assets/Media/Arcade/Arcade.gltf"
+            : m_args.scenePath;
 
         m_descriptorTableManager = std::make_shared<engine::DescriptorTableManager>(GetDevice(), m_bindlessLayout);
 
@@ -131,14 +133,51 @@ public:
         return true;
     }
     
+    void InitCameraFromScene()
+    {
+        if (m_args.scenePath.empty())
+        {
+            m_camera.LookAt(float3(-1.658f, 1.577f, 1.69f), float3(-0.9645f, 1.2672f, 1.0396f));
+        }
+        else
+        {
+            auto* root = m_scene->GetSceneGraph()->GetRootNode().get();
+            for (size_t i = 0; i < root->GetNumChildren() && !m_cameraInitialized; i++)
+                InitCameraFromNode(root->GetChild(i));
+
+            if (!m_cameraInitialized)
+                m_camera.LookAt(float3(0.f, 1.5f, 3.f), float3(0.f, 1.0f, 0.f));
+        }
+        m_camera.SetMoveSpeed(3.f);
+    }
+
+    void InitCameraFromNode(engine::SceneGraphNode* node)
+    {
+        if (m_cameraInitialized || !node)
+            return;
+
+        auto camera = std::dynamic_pointer_cast<engine::PerspectiveCamera>(node->GetLeaf());
+        if (camera)
+        {
+            dm::affine3 viewToWorld = camera->GetViewToWorldMatrix();
+            float3 pos = float3(viewToWorld.m_translation);
+            float3 forward = float3(-viewToWorld.m_linear.row2);
+            m_camera.LookAt(pos, pos + forward);
+            m_cameraInitialized = true;
+            return;
+        }
+
+        for (size_t i = 0; i < node->GetNumChildren() && !m_cameraInitialized; i++)
+            InitCameraFromNode(node->GetChild(i));
+    }
+
     void SceneLoaded() override
     {
         ApplicationBase::SceneLoaded();
 
         m_scene->FinishedLoading(GetFrameIndex());
         
-        m_camera.LookAt(float3(-1.658f, 1.577f, 1.69f), float3(-0.9645f, 1.2672f, 1.0396f));
-        m_camera.SetMoveSpeed(3.f);
+        InitCameraFromScene();
         
         m_scene->BuildMeshBLASes(GetDevice());
 
@@ -362,6 +401,7 @@ private:
     std::unique_ptr<RtxdiResources> m_rtxdiResources;
 
     UIData& m_ui;
+    bool m_cameraInitialized = false;
 };
 
 void ProcessCommandLine(int argc, char** argv, app::DeviceCreationParameters& deviceParams, nvrhi::GraphicsAPI& api)

@@ -8,7 +8,7 @@
  # license agreement from NVIDIA CORPORATION is strictly prohibited.
  **************************************************************************/
 
-#include "RenderPass.h"
+#include "LightingPasses.h"
 #include "RenderTargets.h"
 #include "RtxdiResources.h"
 
@@ -25,7 +25,7 @@ using namespace donut::math;
 
 using namespace donut::engine;
 
-RenderPass::RenderPass(
+LightingPasses::LightingPasses(
     nvrhi::IDevice* device, 
     std::shared_ptr<ShaderFactory> shaderFactory,
     std::shared_ptr<donut::engine::CommonRenderPasses> commonPasses,
@@ -38,8 +38,6 @@ RenderPass::RenderPass(
     , m_commonPasses(std::move(commonPasses))
     , m_scene(std::move(scene))
 {
-    // The binding layout descriptor must match the binding set descriptor defined in CreateBindingSet(...) below
-
     nvrhi::BindingLayoutDesc globalBindingLayoutDesc;
     globalBindingLayoutDesc.visibility = nvrhi::ShaderType::Compute | nvrhi::ShaderType::AllRayTracing;
     globalBindingLayoutDesc.bindings = {
@@ -65,6 +63,8 @@ RenderPass::RenderPass(
         nvrhi::BindingLayoutItem::Texture_UAV(4),
         nvrhi::BindingLayoutItem::Texture_UAV(5),
         nvrhi::BindingLayoutItem::Texture_UAV(6),
+        nvrhi::BindingLayoutItem::Texture_UAV(7),
+        nvrhi::BindingLayoutItem::Texture_UAV(8),
         
         nvrhi::BindingLayoutItem::VolatileConstantBuffer(0),
         nvrhi::BindingLayoutItem::Sampler(0),
@@ -76,7 +76,7 @@ RenderPass::RenderPass(
     m_constantBuffer = m_device->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(ResamplingConstants), "ResamplingConstants", 16));
 }
 
-void RenderPass::CreateBindingSet(
+void LightingPasses::CreateBindingSet(
     nvrhi::rt::IAccelStruct* topLevelAS,
     const RenderTargets& renderTargets,
     const RtxdiResources& resources)
@@ -86,8 +86,6 @@ void RenderPass::CreateBindingSet(
 
     for (int currentFrame = 0; currentFrame <= 1; currentFrame++)
     {
-        // This list must match the binding declarations in RtxdiApplicationBridge.hlsli
-
         nvrhi::BindingSetDesc bindingSetDesc;
         bindingSetDesc.bindings = {
             nvrhi::BindingSetItem::Texture_SRV(0, currentFrame ? renderTargets.PrevDepth : renderTargets.Depth),
@@ -112,6 +110,8 @@ void RenderPass::CreateBindingSet(
             nvrhi::BindingSetItem::Texture_UAV(4, currentFrame ? renderTargets.GBufferGeoNormals : renderTargets.PrevGBufferGeoNormals),
             nvrhi::BindingSetItem::Texture_UAV(5, currentFrame ? renderTargets.GBufferDiffuseAlbedo : renderTargets.PrevGBufferDiffuseAlbedo),
             nvrhi::BindingSetItem::Texture_UAV(6, currentFrame ? renderTargets.GBufferSpecularRough : renderTargets.PrevGBufferSpecularRough),
+            nvrhi::BindingSetItem::Texture_UAV(7, renderTargets.MotionVectors),
+            nvrhi::BindingSetItem::Texture_UAV(8, renderTargets.Emissive),
             
             nvrhi::BindingSetItem::ConstantBuffer(0, m_constantBuffer),
             nvrhi::BindingSetItem::Sampler(0, m_commonPasses->m_LinearWrapSampler),
@@ -129,17 +129,34 @@ void RenderPass::CreateBindingSet(
     m_lightReservoirBuffer = resources.LightReservoirBuffer;
 }
 
-void RenderPass::CreatePipeline()
+void LightingPasses::CreatePipeline()
 {
-    m_computeShader = m_shaderFactory->CreateShader("app/Render.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_GBufferPassShader = m_shaderFactory->CreateShader("app/GBufferPass.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_DIInitialSamplingShader = m_shaderFactory->CreateShader("app/DIGenerateInitialSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_DITemporalResamplingShader = m_shaderFactory->CreateShader("app/DITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_DISpatialResamplingShader = m_shaderFactory->CreateShader("app/DISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_RenderShader = m_shaderFactory->CreateShader("app/DIShadeSamples.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     nvrhi::ComputePipelineDesc pipelineDesc;
     pipelineDesc.bindingLayouts = { m_bindingLayout, m_bindlessLayout };
-    pipelineDesc.CS = m_computeShader;
-    m_computePipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_GBufferPassShader;
+    m_GBufferPassPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_DIInitialSamplingShader;
+    m_DIInitialSamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_DITemporalResamplingShader;
+    m_DITemporalResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_DISpatialResamplingShader;
+    m_DISpatialResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_RenderShader;
+    m_RenderPipeline = m_device->createComputePipeline(pipelineDesc);
 }
 
-void RenderPass::Render(
+void LightingPasses::Render(
     nvrhi::ICommandList* commandList,
     rtxdi::ReSTIRDIContext& context,
     const donut::engine::IView& view,
@@ -147,41 +164,90 @@ void RenderPass::Render(
     const Settings& localSettings,
     const RTXDI_LightBufferParameters& lightBufferParams)
 {
+    context.SetResamplingMode(localSettings.enableResampling
+        ? rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial
+        : rtxdi::ReSTIRDI_ResamplingMode::None);
+
+    auto initialSamplingParams = context.GetInitialSamplingParameters();
+    initialSamplingParams.numPrimaryLocalLightSamples = localSettings.numInitialSamples;
+    initialSamplingParams.numPrimaryBrdfSamples = localSettings.numInitialBRDFSamples;
+    initialSamplingParams.brdfCutoff = localSettings.brdfCutoff;
+    context.SetInitialSamplingParameters(initialSamplingParams);
+
+    auto temporalParams = context.GetTemporalResamplingParameters();
+    temporalParams.temporalBiasCorrection = localSettings.unbiasedMode
+        ? ReSTIRDI_TemporalBiasCorrectionMode::Raytraced
+        : ReSTIRDI_TemporalBiasCorrectionMode::Basic;
+    context.SetTemporalResamplingParameters(temporalParams);
+
+    auto spatialParams = context.GetSpatialResamplingParameters();
+    spatialParams.numSpatialSamples = localSettings.numSpatialSamples;
+    context.SetSpatialResamplingParameters(spatialParams);
+
     ResamplingConstants constants = {};
     constants.frameIndex = context.GetFrameIndex();
     view.FillPlanarViewConstants(constants.view);
     previousView.FillPlanarViewConstants(constants.prevView);
 
     constants.enableResampling = localSettings.enableResampling;
-    constants.unbiasedMode = localSettings.unbiasedMode;
-    constants.numInitialSamples = localSettings.numInitialSamples;
-    constants.numInitialBRDFSamples = localSettings.numInitialBRDFSamples;
-    constants.numSpatialSamples = localSettings.numSpatialSamples;
-    constants.restirDIReservoirBufferParams = context.GetReservoirBufferParameters();
     constants.lightBufferParams = lightBufferParams;
-    constants.runtimeParams.neighborOffsetMask = context.GetStaticParameters().NeighborOffsetCount - 1;
-    constants.runtimeParams.activeCheckerboardField = 0;
+    constants.runtimeParams = context.GetRuntimeParams();
 
-    constants.inputBufferIndex = !(context.GetFrameIndex() & 1);
-    constants.outputBufferIndex = context.GetFrameIndex() & 1;
-    
+    constants.restirDI.reservoirBufferParams = context.GetReservoirBufferParameters();
+    constants.restirDI.bufferIndices = context.GetBufferIndices();
+    constants.restirDI.initialSamplingParams = context.GetInitialSamplingParameters();
+    constants.restirDI.temporalResamplingParams = context.GetTemporalResamplingParameters();
+    constants.restirDI.spatialResamplingParams = context.GetSpatialResamplingParameters();
+    constants.restirDI.shadingParams = context.GetShadingParameters();
+
     commandList->writeBuffer(m_constantBuffer, &constants, sizeof(constants));
 
-    commandList->beginMarker("Render");
+    uint32_t dispatchWidth = dm::div_ceil(view.GetViewExtent().width(), RTXDI_SCREEN_SPACE_GROUP_SIZE);
+    uint32_t dispatchHeight = dm::div_ceil(view.GetViewExtent().height(), RTXDI_SCREEN_SPACE_GROUP_SIZE);
 
     nvrhi::ComputeState state;
     state.bindings = { m_bindingSet, m_scene->GetDescriptorTable() };
-    state.pipeline = m_computePipeline;
+
+    commandList->beginMarker("GBufferPass");
+    state.pipeline = m_GBufferPassPipeline;
     commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
+    commandList->endMarker();
 
-    commandList->dispatch(
-        dm::div_ceil(view.GetViewExtent().width(), RTXDI_SCREEN_SPACE_GROUP_SIZE),
-        dm::div_ceil(view.GetViewExtent().height(), RTXDI_SCREEN_SPACE_GROUP_SIZE));
+    nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
 
+    commandList->beginMarker("DIGenerateInitialSamples");
+    state.pipeline = m_DIInitialSamplingPipeline;
+    commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
+    commandList->endMarker();
+
+    nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
+
+    commandList->beginMarker("DITemporalResampling");
+    state.pipeline = m_DITemporalResamplingPipeline;
+    commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
+    commandList->endMarker();
+
+    nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
+
+    commandList->beginMarker("DISpatialResampling");
+    state.pipeline = m_DISpatialResamplingPipeline;
+    commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
+    commandList->endMarker();
+
+    nvrhi::utils::BufferUavBarrier(commandList, m_lightReservoirBuffer);
+
+    commandList->beginMarker("DIShadeSamples");
+    state.pipeline = m_RenderPipeline;
+    commandList->setComputeState(state);
+    commandList->dispatch(dispatchWidth, dispatchHeight);
     commandList->endMarker();
 }
 
-void RenderPass::NextFrame()
+void LightingPasses::NextFrame()
 {
     std::swap(m_bindingSet, m_prevBindingSet);
 }

@@ -33,6 +33,8 @@ RWTexture2D<float4> u_MotionVectors : register(u7);
 RWTexture2D<float4> u_Emissive : register(u8);
 RWTexture2D<float4> u_SpecularLighting : register(u9);
 RWTexture2D<float4> u_HdrColor : register(u10);
+RWStructuredBuffer<SecondaryGBufferData> u_SecondaryGBuffer : register(u11);
+RWStructuredBuffer<RTXDI_PackedGIReservoir> u_GIReservoirs : register(u12);
 
 // Other
 ConstantBuffer<ResamplingConstants> g_Const : register(b0);
@@ -40,6 +42,7 @@ SamplerState s_MaterialSampler : register(s0);
 
 #define RTXDI_LIGHT_RESERVOIR_BUFFER u_LightReservoirs
 #define RTXDI_NEIGHBOR_OFFSETS_BUFFER t_NeighborOffsets
+#define RTXDI_GI_RESERVOIR_BUFFER u_GIReservoirs
 
 int RAB_TranslateLightIndex(uint lightIndex, bool currentToPrevious)
 {

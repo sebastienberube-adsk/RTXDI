@@ -10,6 +10,7 @@
 
 #include "RtxdiResources.h"
 #include <Rtxdi/DI/ReSTIRDI.h>
+#include <Rtxdi/GI/ReSTIRGI.h>
 
 #include <donut/core/math/math.h>
 
@@ -74,6 +75,26 @@ RtxdiResources::RtxdiResources(
     lightReservoirBufferDesc.debugName = "LightReservoirBuffer";
     lightReservoirBufferDesc.canHaveUAVs = true;
     LightReservoirBuffer = device->createBuffer(lightReservoirBufferDesc);
+
+
+    nvrhi::BufferDesc secondaryGBufferDesc;
+    secondaryGBufferDesc.byteSize = sizeof(SecondaryGBufferData) * context.GetReservoirBufferParameters().reservoirArrayPitch;
+    secondaryGBufferDesc.structStride = sizeof(SecondaryGBufferData);
+    secondaryGBufferDesc.initialState = nvrhi::ResourceStates::UnorderedAccess;
+    secondaryGBufferDesc.keepInitialState = true;
+    secondaryGBufferDesc.debugName = "SecondaryGBuffer";
+    secondaryGBufferDesc.canHaveUAVs = true;
+    SecondaryGBuffer = device->createBuffer(secondaryGBufferDesc);
+
+
+    nvrhi::BufferDesc giReservoirBufferDesc;
+    giReservoirBufferDesc.byteSize = sizeof(RTXDI_PackedGIReservoir) * context.GetReservoirBufferParameters().reservoirArrayPitch * rtxdi::c_NumReSTIRGIReservoirBuffers;
+    giReservoirBufferDesc.structStride = sizeof(RTXDI_PackedGIReservoir);
+    giReservoirBufferDesc.initialState = nvrhi::ResourceStates::UnorderedAccess;
+    giReservoirBufferDesc.keepInitialState = true;
+    giReservoirBufferDesc.debugName = "GIReservoirBuffer";
+    giReservoirBufferDesc.canHaveUAVs = true;
+    GIReservoirBuffer = device->createBuffer(giReservoirBufferDesc);
 }
 
 void RtxdiResources::InitializeNeighborOffsets(nvrhi::ICommandList* commandList, uint32_t neighborOffsetCount)

@@ -11,7 +11,6 @@
 #pragma pack_matrix(row_major)
 
 #define RTXDI_ENABLE_PRESAMPLING 0
-//static float4 cDebug;// = float4(0,1,0,1);
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"
 
 #include <Rtxdi/DI/InitialSampling.hlsli>
@@ -128,8 +127,6 @@
 [numthreads(RTXDI_SCREEN_SPACE_GROUP_SIZE, RTXDI_SCREEN_SPACE_GROUP_SIZE, 1)]
 void main(uint2 pixelPosition : SV_DispatchThreadID)
 {
-    //cDebug = float4(0,0,0,0);
-
     /*
     struct RTXDI_LightBufferRegion{
         uint32_t firstLightIndex;
@@ -184,20 +181,7 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     };
     */
     PrimarySurfaceOutput primary = TracePrimaryRay(pixelPosition);
-    //primary.surface.material.diffuseAlbedo = float3(0.1,0.1,0.1);  //Surface color (unlit)
-    //primary.surface.material.specularF0 = 1.0; //perpendicular reflectance (1.0=100%)
-    //primary.surface.material.roughness = 0.05;
-
-
-    // ------------------- Normal Debug -------------------
-    //cDebug = float4(primary.surface.geoNormal,1);
-    //cDebug = float4(primary.surface.normal,1); //Final normal (interpolated geo normal + material normal)
-
-    // ------------------- Depth Debug (linear) -------------------
-    //float depthRange = 2.5;
-    //float minDepth = 1.7;
-    //cDebug = float4((primary.surface.viewDepth-minDepth)/depthRange,0,0,1); //Depth from camera (0=close)
-    //cDebug = float4(frac(primary.surface.viewDepth*10.0),0,0,1); //Linear Depth Test (with stripes)
+    
 
     // Store the G-buffer data for resampling on the next frame
     u_GBufferDepth[pixelPosition] = primary.surface.viewDepth;
@@ -215,35 +199,26 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     {
         // Initialize the RNG
         // typedef RandomSamplerState RAB_RandomSamplerState;
-        /*
-        struct RandomSamplerState
-        {
-            uint seed;
-            uint index;
-        };
-        */
+        //
+        //struct RandomSamplerState{
+        //    uint seed;
+        //    uint index;
+        //};
         RAB_RandomSamplerState rng = RAB_InitRandomSampler(pixelPosition, 1);
 
-        //cDebug = float4(0,rng.seed/5000000000.0,0,1);                     //Seed is random in range [0-5000000000]
-        //if(g_Const.numInitialSamples == 8 ) cDebug = float4(0,1,0,1);     //g_Const.numInitialSamples == 8
-        //if(g_Const.numInitialBRDFSamples == 1 ) cDebug = float4(1,1,0,1); //g_Const.numInitialSamples == 1
-        
-        /*
-        struct RTXDI_SampleParameters
-        {    
-            uint numLocalLightSamples;
-            uint numInfiniteLightSamples;
-            uint numEnvironmentMapSamples;
-            uint numBrdfSamples;
-
-            uint numMisSamples;
-            float localLightMisWeight;
-            float environmentMapMisWeight;
-            float brdfMisWeight;
-            float brdfCutoff;
-            float brdfRayMinT;
-        };
-        */
+        //struct RTXDI_SampleParameters{
+        //    uint numLocalLightSamples;
+        //    uint numInfiniteLightSamples;
+        //    uint numEnvironmentMapSamples;
+        //    uint numBrdfSamples;
+        //
+        //    uint numMisSamples;
+        //    float localLightMisWeight;
+        //    float environmentMapMisWeight;
+        //    float brdfMisWeight;
+        //    float brdfCutoff;
+        //    float brdfRayMinT;
+        //};
         RTXDI_SampleParameters sampleParams = RTXDI_InitSampleParameters(
             g_Const.numInitialSamples, // local light samples 
             0, // infinite light samples
@@ -253,14 +228,12 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
             0.001f);
 
         // Generate the initial sample
-        /*
-        struct RAB_LightSample
-        {
-            float3 position;
-            float3 normal;
-            float3 radiance;
-            float solidAnglePdf;
-        };*/
+        //struct RAB_LightSample{
+        //    float3 position;
+        //    float3 normal;
+        //    float3 radiance;
+        //    float solidAnglePdf;
+        //};
         RAB_LightSample lightSample = RAB_EmptyLightSample();
 
         //-----------------------------------------------------------------------
@@ -315,18 +288,17 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
             lightSample = brdfSample;
         }
 
-        /*
+        
         // Performs normalization of the reservoir after streaming. Equation (6) from the ReSTIR paper.
-        void RTXDI_FinalizeResampling(
-            inout RTXDI_DIReservoir reservoir,
-            float normalizationNumerator,
-            float normalizationDenominator)
-        {
-            float denominator = reservoir.targetPdf * normalizationDenominator;
-
-            reservoir.weightSum = (denominator == 0.0) ? 0.0 : (reservoir.weightSum * normalizationNumerator) / denominator;
-        }
-        */
+        //void RTXDI_FinalizeResampling(
+        //    inout RTXDI_DIReservoir reservoir,
+        //    float normalizationNumerator,
+        //    float normalizationDenominator)
+        //{
+        //    float denominator = reservoir.targetPdf * normalizationDenominator;
+        //
+        //    reservoir.weightSum = (denominator == 0.0) ? 0.0 : (reservoir.weightSum * normalizationNumerator) / denominator;
+        //}
         RTXDI_FinalizeResampling(reservoir, 1.0, 1.0);
         reservoir.M = 1;
          
@@ -346,8 +318,6 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         // When disabled, lighting effect is really sparse and noisy, mostly black.
         if (g_Const.enableResampling)
         {
-            //cDebug = float4(0,1,0,1); //Tested: g_Const.enableResampling = true
-
             // Fill out the parameter structure.
             // Mostly use literal constants for simplicity.
             RTXDI_DISpatioTemporalResamplingParameters stparams;

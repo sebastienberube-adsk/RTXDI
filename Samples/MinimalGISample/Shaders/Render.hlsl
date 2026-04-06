@@ -348,7 +348,7 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
             stparams.numSamples = g_Const.numSpatialSamples + 1;
             stparams.numDisocclusionBoostSamples = 0;
             stparams.samplingRadius = 32;
-            stparams.enableVisibilityShortcut = true;
+            stparams.enableVisibilityShortcut = false;
             stparams.enablePermutationSampling = true;
             stparams.uniformRandomNumber = g_Const.frameIndex;
             stparams.discountNaiveSamples = false;

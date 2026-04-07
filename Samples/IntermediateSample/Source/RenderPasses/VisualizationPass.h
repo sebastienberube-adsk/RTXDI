@@ -56,15 +56,10 @@ private:
     nvrhi::DeviceHandle m_device;
 
     nvrhi::BindingLayoutHandle m_hdrBindingLayout;
-    nvrhi::BindingLayoutHandle m_confidenceBindingLayout;
     nvrhi::BindingSetHandle m_hdrBindingSet;
-    nvrhi::BindingSetHandle m_confidenceBindingSet;
-    nvrhi::BindingSetHandle m_confidenceBindingSetPrev;
     nvrhi::ShaderHandle m_vertexShader;
     nvrhi::ShaderHandle m_hdrPixelShader;
-    nvrhi::ShaderHandle m_confidencePixelShader;
     nvrhi::GraphicsPipelineHandle m_hdrPipeline;
-    nvrhi::GraphicsPipelineHandle m_confidencePipeline;
 
     nvrhi::BufferHandle m_constantBuffer;
 };

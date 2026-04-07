@@ -33,7 +33,6 @@ VisualizationPass::VisualizationPass(nvrhi::IDevice* device,
 {
     m_vertexShader = commonPasses.m_FullscreenVS;
     m_hdrPixelShader = shaderFactory.CreateShader("app/VisualizeHdrSignals.hlsl", "main", nullptr, nvrhi::ShaderType::Pixel);
-    m_confidencePixelShader = shaderFactory.CreateShader("app/VisualizeConfidence.hlsl", "main", nullptr, nvrhi::ShaderType::Pixel);
 
     auto constantBufferDesc = nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(VisualizationConstants), "VisualizationConstants", 16);
 
@@ -53,23 +52,6 @@ VisualizationPass::VisualizationPass(nvrhi::IDevice* device,
         .addItem(nvrhi::BindingSetItem::ConstantBuffer(0, m_constantBuffer));
 
     nvrhi::utils::CreateBindingSetAndLayout(device, nvrhi::ShaderType::AllGraphics, 0, bindingDesc, m_hdrBindingLayout, m_hdrBindingSet);
-
-    for (int currentFrame = 0; currentFrame <= 1; currentFrame++)
-    {
-        bindingDesc.bindings.resize(0);
-        bindingDesc
-            .addItem(nvrhi::BindingSetItem::Texture_SRV(0, currentFrame ? renderTargets.DiffuseConfidence : renderTargets.PrevDiffuseConfidence))
-            .addItem(nvrhi::BindingSetItem::Texture_SRV(1, currentFrame ? renderTargets.SpecularConfidence : renderTargets.PrevSpecularConfidence))
-            .addItem(nvrhi::BindingSetItem::ConstantBuffer(0, m_constantBuffer));
-
-        nvrhi::BindingSetHandle bindingSet;
-        nvrhi::utils::CreateBindingSetAndLayout(device, nvrhi::ShaderType::AllGraphics, 0, bindingDesc, m_confidenceBindingLayout, bindingSet);
-
-        if (currentFrame)
-            m_confidenceBindingSet = bindingSet;
-        else
-            m_confidenceBindingSetPrev = bindingSet;
-    }
 }
 
 void VisualizationPass::Render(
@@ -125,5 +107,4 @@ void VisualizationPass::Render(
 
 void VisualizationPass::NextFrame()
 {
-    std::swap(m_confidenceBindingSet, m_confidenceBindingSetPrev);
 }

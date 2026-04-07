@@ -36,6 +36,17 @@ Texture2D t_DenoisedSpecular : register(t8);
 
 SamplerState s_EnvironmentSampler : register(s0);
 
+float3 basicToneMapping(float3 color, float bias)
+{
+    float lum = dot(color.xyz, float3(0.299f, 0.587f, 0.114f));
+    if (lum > 0)
+    {
+        float newlum = lum / (bias + lum);
+        color *= newlum / lum;
+    }
+    return color;
+}
+
 [numthreads(8, 8, 1)]
 void main(uint2 globalIdx : SV_DispatchThreadID)
 {
@@ -114,6 +125,9 @@ void main(uint2 globalIdx : SV_DispatchThreadID)
 
     if(any(isnan(compositedColor)))
         compositedColor = float3(0, 0, 1);
+
+    if (g_Const.enableBasicToneMapping)
+        compositedColor = basicToneMapping(compositedColor, 0.005);
 
     u_Output[globalIdx] = float4(compositedColor, 1.0);
 }

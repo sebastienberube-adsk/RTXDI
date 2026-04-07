@@ -75,6 +75,7 @@ void ProcessCommandLine(int argc, char** argv,
         ("width", "Render width override", value(args.renderWidth))
         ("height", "Render height override", value(args.renderHeight))
         ("direct-resampling", "Direct lighting resampling mode: NONE, TEMPORAL, SPATIAL, TEMPORAL_SPATIAL, FUSED", value(ui.lightingSettings.resamplingMode))
+        ("basic-tonemap", "Enable basic tone mapping in compositing (same as MinimalSample)", value<bool>())
         ("disable-gi", "Disable ReSTIR GI (DI only)", value<bool>())
         ("aa-mode", "Anti-aliasing mode: OFF, ACC (accumulation)", value<std::string>())
         ("minimal-sample-compatibility-mode", "Configure settings to match MinimalSample output for testing", value<bool>())
@@ -91,6 +92,11 @@ void ProcessCommandLine(int argc, char** argv,
     if (result.count("vk"))
     {
         args.graphicsApi = nvrhi::GraphicsAPI::VULKAN;
+    }
+
+    if (result.count("basic-tonemap"))
+    {
+        ui.lightingSettings.enableBasicToneMapping = true;
     }
 
     if (result.count("disable-gi"))
@@ -112,8 +118,8 @@ void ProcessCommandLine(int argc, char** argv,
         ui.lightingSettings.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
         ui.lightingSettings.discardInvisibleSamples = true;
         ui.lightingSettings.numDisocclusionBoostSamples = 0;
-        // MinimalSample does not set enableMaterialSimilarityTest (defaults to false)
         ui.lightingSettings.enableMaterialSimilarityTest = false;
+        ui.lightingSettings.enableBasicToneMapping = true;
     }
 
     if (args.renderWidth > 0 && args.renderHeight > 0)

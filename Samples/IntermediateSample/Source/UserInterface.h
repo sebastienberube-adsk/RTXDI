@@ -108,10 +108,12 @@ struct UIData
     ibool enableTextures = true;
     uint32_t framesToAccumulate = 0;
     ibool enableToneMapping = true;
+    ibool enableBasicToneMapping = false;
     ibool enablePixelJitter = false;
     ibool rasterizeGBuffer = true;
     ibool useRayQuery = true;
     ibool enableBloom = true;
+    ibool enableEnvironmentRendering = true;
     float exposureBias = -1.0f;
     float verticalFov = 60.f;
 

@@ -51,7 +51,7 @@ public:
         uint32_t numDisocclusionBoostSamples = 0;
         uint32_t numInitialBRDFSamples = 1;
         float brdfCutoff = 0.f;
-        bool enableBasicToneMapping = true;
+        bool enableBasicToneMapping = false;
         bool enableBrdfIndirect = false;
     };
 

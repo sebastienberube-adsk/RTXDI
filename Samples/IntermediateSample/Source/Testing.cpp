@@ -166,6 +166,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
     bool help = false;
     bool useVk = false;
     ibool checkerboard = false;
+    bool minimalSampleCompat = false;
     options.add_options()
         ("aa-mode", "Anti-aliasing mode: OFF, ACC, TAA", value(ui.aaMode))
         ("alpha-tested", "Alpha-tested materials toggle", value(ui.gbufferSettings.enableAlphaTestedGeometry))
@@ -192,6 +193,9 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("save-file", "Save frame to file and exit", value(args.saveFrameFileName))
         ("save-frame", "Index of the frame to save, default is 0", value(args.saveFrameIndex))
         ("scene", "Scene file path (VFS path, e.g. /Assets/Media/arcade.scene.json or /Assets/Media/Arcade/Arcade.gltf)", value(args.scenePath))
+        ("basic-tonemap", "Basic tone mapping in compositing (same as MinimalSample)", value(ui.enableBasicToneMapping))
+        ("environment", "Environment map rendering toggle", value(ui.enableEnvironmentRendering))
+        ("minimal-sample-compatibility-mode", "Match MinimalGISample parameter defaults", value(minimalSampleCompat))
         ("tone-mapping", "Tone mapping toggle", value(ui.enableToneMapping))
         ("transparent", "Transparent materials toggle", value(ui.gbufferSettings.enableTransparentGeometry))
         ("verbose", "Enable debug log messages", value(args.verbose))
@@ -242,6 +246,16 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
 
     if (checkerboard)
         ui.restirDIStaticParams.CheckerboardSamplingMode = rtxdi::CheckerboardMode::Black;
+
+    if (minimalSampleCompat)
+    {
+        ui.restirDI.initialSamplingParams.localLightSamplingMode = ReSTIRDI_LocalLightSamplingMode::Uniform;
+        ui.restirDI.initialSamplingParams.numPrimaryBrdfSamples = 1;
+        ui.restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples = 1;
+        ui.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples = 1;
+        ui.restirDI.spatialResamplingParams.numDisocclusionBoostSamples = 0;
+        ui.restirDI.temporalResamplingParams.temporalBiasCorrection = ReSTIRDI_TemporalBiasCorrectionMode::Basic;
+    }
 }
 
 void ApplicationLogCallback(log::Severity severity, const char* message)

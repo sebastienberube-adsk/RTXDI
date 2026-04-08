@@ -49,33 +49,11 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
 
         RAB_LightSample lightSample = RAB_EmptyLightSample();
 
-        // For simplicity, the minimal sample only generates local light samples. The full sample generates local, infinite, environment, and BRDF samples.
-        // RTXDI_SampleLightsForSurface is a convenience function that internally calls:
-        //  - RTXDI_SampleLocalLights — local lights
-        //  - RTXDI_SampleInfiniteLights — infinite/directional lights
-        //  - RTXDI_SampleEnvironmentMap — environment map (when presampling is enabled)
-        //  - RTXDI_SampleBrdf — BRDF-guided samples
-        RTXDI_DIReservoir localReservoir = RTXDI_SampleLocalLights(rng, tileRng, surface,
-            sampleParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM,
-            lightBufferParams.localLightBufferRegion, lightSample);
+        reservoir = RTXDI_SampleLightsForSurface(rng, tileRng, surface,
+            sampleParams, lightBufferParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM,
+            lightSample);
 
-        RTXDI_CombineDIReservoirs(reservoir, localReservoir, 0.5, localReservoir.targetPdf);
-
-        RAB_LightSample brdfSample = RAB_EmptyLightSample();
-        RTXDI_DIReservoir brdfReservoir = RTXDI_SampleBrdf(rng, surface, sampleParams, lightBufferParams, brdfSample);
-
-        bool selectBrdf = RTXDI_CombineDIReservoirs(reservoir, brdfReservoir, RAB_GetNextRandom(rng), brdfReservoir.targetPdf);
-        if (selectBrdf)
-        {
-            lightSample = brdfSample;
-        }
-
-        RTXDI_FinalizeResampling(reservoir, 1.0, 1.0);
-        reservoir.M = 1;
-        
-        // Note: enableInitialVisibility option is not offered in the original MinimalSample
-        if (g_Const.restirDI.initialSamplingParams.enableInitialVisibility
-            && RTXDI_IsValidDIReservoir(reservoir) && !selectBrdf)
+        if (g_Const.restirDI.initialSamplingParams.enableInitialVisibility && RTXDI_IsValidDIReservoir(reservoir))
         {
             if (!RAB_GetConservativeVisibility(surface, lightSample))
             {

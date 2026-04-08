@@ -28,6 +28,7 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     RAB_Surface surface = RAB_GetGBufferSurface(pixelPosition, false);
 
     RAB_RandomSamplerState rng = RAB_InitRandomSampler(pixelPosition, 1);
+    RAB_RandomSamplerState tileRng = RAB_InitRandomSampler(pixelPosition / RTXDI_TILE_SIZE_IN_PIXELS, 1);
 
     RTXDI_SampleParameters sampleParams = RTXDI_InitSampleParameters(
         g_Const.restirDI.initialSamplingParams.numPrimaryLocalLightSamples,
@@ -41,25 +42,11 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
 
     if (RAB_IsSurfaceValid(surface))
     {
-        RTXDI_DIReservoir localReservoir = RTXDI_SampleLocalLights(rng, rng, surface,
-            sampleParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM,
-            lightBufferParams.localLightBufferRegion, lightSample);
+        reservoir = RTXDI_SampleLightsForSurface(rng, tileRng, surface,
+            sampleParams, lightBufferParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM,
+            lightSample);
 
-        RTXDI_CombineDIReservoirs(reservoir, localReservoir, 0.5, localReservoir.targetPdf);
-
-        RAB_LightSample brdfSample = RAB_EmptyLightSample();
-        RTXDI_DIReservoir brdfReservoir = RTXDI_SampleBrdf(rng, surface, sampleParams, lightBufferParams, brdfSample);
-
-        bool selectBrdf = RTXDI_CombineDIReservoirs(reservoir, brdfReservoir, RAB_GetNextRandom(rng), brdfReservoir.targetPdf);
-        if (selectBrdf)
-        {
-            lightSample = brdfSample;
-        }
-
-        RTXDI_FinalizeResampling(reservoir, 1.0, 1.0);
-        reservoir.M = 1;
-
-        if (RTXDI_IsValidDIReservoir(reservoir) && !selectBrdf)
+        if (g_Const.restirDI.initialSamplingParams.enableInitialVisibility && RTXDI_IsValidDIReservoir(reservoir))
         {
             if (!RAB_GetConservativeVisibility(surface, lightSample))
             {

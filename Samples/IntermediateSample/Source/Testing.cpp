@@ -255,6 +255,17 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples = 1;
         ui.restirDI.spatialResamplingParams.numDisocclusionBoostSamples = 0;
         ui.restirDI.temporalResamplingParams.temporalBiasCorrection = ReSTIRDI_TemporalBiasCorrectionMode::Basic;
+        ui.restirDI.temporalResamplingParams.discardInvisibleSamples = true;
+        ui.restirDI.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
+
+        ui.enableBasicToneMapping = true;
+        ui.enableToneMapping = false;
+        ui.enableBloom = false;
+        ui.gbufferSettings.enableAlphaTestedGeometry = false;
+        ui.gbufferSettings.enableTransparentGeometry = false;
+        ui.aaMode = AntiAliasingMode::None;
+
+        args.disableEnvironment = true;
     }
 }
 

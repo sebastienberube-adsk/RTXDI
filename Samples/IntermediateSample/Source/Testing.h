@@ -34,6 +34,7 @@ struct CommandLineArguments
     bool verbose = false;
     bool benchmark = false;
     bool disableBackgroundOptimization = false;
+    bool disableEnvironment = false;
     int renderWidth = 0;
     int renderHeight = 0;
 };

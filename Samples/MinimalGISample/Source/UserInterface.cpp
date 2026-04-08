@@ -81,6 +81,7 @@ void UserInterface::buildUI()
             "Temporal + Spatial\0"
             "Fused Spatiotemporal\0");
         ImGui::Checkbox("Unbiased Mode", &m_ui.lightingSettings.unbiasedMode);
+        ImGui::Checkbox("ReSTIR GI", &m_ui.lightingSettings.enableBrdfIndirect);
 
         ImGui::SliderInt("Initial Samples", (int*)&m_ui.lightingSettings.numInitialSamples, 1, 32);
         ImGui::SliderInt("Spatial Samples", (int*)&m_ui.lightingSettings.numSpatialSamples, 0, 4);

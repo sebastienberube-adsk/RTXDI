@@ -83,12 +83,16 @@ bool ShadeSurfaceWithLightSample(
 
     if (any(lightSample.radiance > 0))
     {
-        SplitBrdf brdf = EvaluateBrdf(surface, lightSample.position);
+        float3 L = normalize(lightSample.position - surface.worldPos);
+        if (dot(L, surface.geoNormal) > 0)
+        {
+            SplitBrdf brdf = EvaluateBrdf(surface, lightSample.position);
 
-        diffuse = brdf.demodulatedDiffuse * lightSample.radiance;
-        specular = brdf.specular * lightSample.radiance;
+            diffuse = brdf.demodulatedDiffuse * lightSample.radiance;
+            specular = brdf.specular * lightSample.radiance;
 
-        lightDistance = length(lightSample.position - surface.worldPos);
+            lightDistance = length(lightSample.position - surface.worldPos);
+        }
     }
 
     return needToStore;

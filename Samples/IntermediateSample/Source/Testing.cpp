@@ -249,23 +249,49 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
 
     if (minimalSampleCompat)
     {
-        ui.restirDI.initialSamplingParams.localLightSamplingMode = ReSTIRDI_LocalLightSamplingMode::Uniform;
-        ui.restirDI.initialSamplingParams.numPrimaryBrdfSamples = 1;
-        ui.restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples = 1;
-        ui.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples = 1;
-        ui.restirDI.spatialResamplingParams.numDisocclusionBoostSamples = 0;
-        ui.restirDI.temporalResamplingParams.temporalBiasCorrection = ReSTIRDI_TemporalBiasCorrectionMode::Basic;
-        ui.restirDI.temporalResamplingParams.discardInvisibleSamples = true;
+        // Match MinimalGISample's resampling mode and general app settings
         ui.restirDI.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
-
         ui.enableBasicToneMapping = true;
         ui.enableToneMapping = false;
         ui.enableBloom = false;
+        ui.rasterizeGBuffer = false;
         ui.gbufferSettings.enableAlphaTestedGeometry = false;
         ui.gbufferSettings.enableTransparentGeometry = false;
         ui.aaMode = AntiAliasingMode::None;
-
         args.disableEnvironment = true;
+
+        // Initial sampling — match MinimalGISample LightingPasses::Settings + SDK defaults
+        ui.restirDI.initialSamplingParams.localLightSamplingMode = ReSTIRDI_LocalLightSamplingMode::Uniform;
+        ui.restirDI.initialSamplingParams.numPrimaryLocalLightSamples = 8;
+        ui.restirDI.initialSamplingParams.numPrimaryBrdfSamples = 1;
+        ui.restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples = 1;
+        ui.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples = 1;
+        ui.restirDI.initialSamplingParams.enableInitialVisibility = true;
+        ui.restirDI.initialSamplingParams.brdfCutoff = 0.0f;
+
+        // Temporal resampling — match MinimalGISample overrides + SDK defaults
+        ui.restirDI.temporalResamplingParams.temporalBiasCorrection = ReSTIRDI_TemporalBiasCorrectionMode::Basic;
+        ui.restirDI.temporalResamplingParams.discardInvisibleSamples = true;
+        ui.restirDI.temporalResamplingParams.enablePermutationSampling = true;
+        ui.restirDI.temporalResamplingParams.permutationSamplingThreshold = 0.9f;
+        ui.restirDI.temporalResamplingParams.maxHistoryLength = 20;
+        ui.restirDI.temporalResamplingParams.temporalDepthThreshold = 0.1f;
+        ui.restirDI.temporalResamplingParams.temporalNormalThreshold = 0.5f;
+        ui.restirDI.temporalResamplingParams.enableBoilingFilter = true;
+        ui.restirDI.temporalResamplingParams.boilingFilterStrength = 0.2f;
+
+        // Spatial resampling — match MinimalGISample overrides + SDK defaults
+        ui.restirDI.spatialResamplingParams.numSpatialSamples = 1;
+        ui.restirDI.spatialResamplingParams.numDisocclusionBoostSamples = 0;
+        ui.restirDI.spatialResamplingParams.spatialSamplingRadius = 32.0f;
+        ui.restirDI.spatialResamplingParams.spatialBiasCorrection = ReSTIRDI_SpatialBiasCorrectionMode::Basic;
+        ui.restirDI.spatialResamplingParams.discountNaiveSamples = 0;
+
+        // Shading — match SDK defaults (MinimalGISample does not override these)
+        ui.restirDI.shadingParams.enableFinalVisibility = true;
+        ui.restirDI.shadingParams.reuseFinalVisibility = true;
+        ui.restirDI.shadingParams.finalVisibilityMaxAge = 4;
+        ui.restirDI.shadingParams.finalVisibilityMaxDistance = 16.0f;
     }
 }
 

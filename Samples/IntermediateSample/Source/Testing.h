@@ -35,6 +35,7 @@ struct CommandLineArguments
     bool benchmark = false;
     bool disableBackgroundOptimization = false;
     bool disableEnvironment = false;
+    bool skipPostprocessGBuffer = false;
     int renderWidth = 0;
     int renderHeight = 0;
 };

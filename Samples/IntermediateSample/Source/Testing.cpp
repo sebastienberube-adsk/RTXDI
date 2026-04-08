@@ -259,6 +259,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.gbufferSettings.enableTransparentGeometry = false;
         ui.aaMode = AntiAliasingMode::None;
         args.disableEnvironment = true;
+        args.skipPostprocessGBuffer = true;
 
         // Initial sampling — match MinimalGISample LightingPasses::Settings + SDK defaults
         ui.restirDI.initialSamplingParams.localLightSamplingMode = ReSTIRDI_LocalLightSamplingMode::Uniform;
@@ -286,6 +287,12 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.restirDI.spatialResamplingParams.spatialSamplingRadius = 32.0f;
         ui.restirDI.spatialResamplingParams.spatialBiasCorrection = ReSTIRDI_SpatialBiasCorrectionMode::Basic;
         ui.restirDI.spatialResamplingParams.discountNaiveSamples = 0;
+
+        // Material similarity — MinimalGISample disables this in compat mode
+        ui.lightingSettings.enableMaterialSimilarityTest = false;
+
+        // Permutation sampling — bypass IsComplexSurface check by zeroing threshold
+        ui.restirDI.temporalResamplingParams.permutationSamplingThreshold = 0.0f;
 
         // Shading — match MinimalGISample (which uses fresh visibility checks, not reuse)
         ui.restirDI.shadingParams.enableFinalVisibility = true;

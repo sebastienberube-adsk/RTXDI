@@ -103,7 +103,7 @@ void RayGen()
     stparams.samplingRadius = g_Const.restirDI.spatialResamplingParams.spatialSamplingRadius;
     stparams.enableVisibilityShortcut = g_Const.restirDI.temporalResamplingParams.discardInvisibleSamples;
     stparams.enablePermutationSampling = usePermutationSampling;
-    stparams.enableMaterialSimilarityTest = true;
+    stparams.enableMaterialSimilarityTest = g_Const.enableMaterialSimilarityTest;
     stparams.uniformRandomNumber = g_Const.restirDI.temporalResamplingParams.uniformRandomNumber;
     stparams.discountNaiveSamples = g_Const.discountNaiveSamples;
 

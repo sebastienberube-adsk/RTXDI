@@ -14,7 +14,10 @@ SplitBrdf EvaluateBrdf(RAB_Surface surface, float3 samplePosition)
 
     SplitBrdf brdf;
     brdf.demodulatedDiffuse = Lambert(surface.normal, -L);
-    brdf.specular = GGX_times_NdotL(V, L, surface.normal, max(surface.material.roughness, kMinRoughness), surface.material.specularF0);
+    if (surface.material.roughness == 0)
+        brdf.specular = 0;
+    else
+        brdf.specular = GGX_times_NdotL(V, L, surface.normal, max(surface.material.roughness, kMinRoughness), surface.material.specularF0);
     return brdf;
 }
 
@@ -52,12 +55,8 @@ bool ShadeSurfaceWithLightSample(
         if (!visibilityReused)
         {
             visibility = GetFinalVisibility(SceneBVH, surface, lightSample.position);
-
-            if (!any(visibility > 0))
-            {
-                RTXDI_StoreVisibilityInDIReservoir(reservoir, visibility, g_Const.restirDI.temporalResamplingParams.discardInvisibleSamples);
-                needToStore = true;
-            }
+            RTXDI_StoreVisibilityInDIReservoir(reservoir, visibility, g_Const.restirDI.temporalResamplingParams.discardInvisibleSamples);
+            needToStore = true;
         }
 
         lightSample.radiance *= visibility;
@@ -67,10 +66,14 @@ bool ShadeSurfaceWithLightSample(
 
     if (any(lightSample.radiance > 0))
     {
-        SplitBrdf brdf = EvaluateBrdf(surface, lightSample.position);
+        float3 L = normalize(lightSample.position - surface.worldPos);
+        if (dot(L, surface.geoNormal) > 0)
+        {
+            SplitBrdf brdf = EvaluateBrdf(surface, lightSample.position);
 
-        diffuse = brdf.demodulatedDiffuse * lightSample.radiance;
-        specular = brdf.specular * lightSample.radiance;
+            diffuse = brdf.demodulatedDiffuse * lightSample.radiance;
+            specular = brdf.specular * lightSample.radiance;
+        }
     }
 
     return needToStore;

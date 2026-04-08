@@ -155,7 +155,9 @@ bool RAB_GetSurfaceBrdfSample(RAB_Surface surface, inout RAB_RandomSamplerState 
     }
     else
     {
-        float3 h = ImportanceSampleGGX(rand.yz, max(surface.material.roughness, kMinRoughness));
+        float3 Ve = normalize(worldToTangent(surface, surface.viewDir));
+        float3 h = ImportanceSampleGGX_VNDF(rand.yz, max(surface.material.roughness, kMinRoughness), Ve, 1.0);
+        h = normalize(h);
         dir = reflect(-surface.viewDir, tangentToWorld(surface, h));
     }
 

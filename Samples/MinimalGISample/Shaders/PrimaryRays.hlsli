@@ -61,6 +61,9 @@ PrimarySurfaceOutput TracePrimaryRay(int2 pixelPosition)
         float2 texGrad_x = texcoord_x - texcoord_0;
         float2 texGrad_y = texcoord_y - texcoord_0;
 
+        if (dot(gs.geometryNormal, ray.Direction) > 0)
+            gs.geometryNormal = -gs.geometryNormal;
+
         MaterialSample ms = sampleGeometryMaterial(gs, texGrad_x, texGrad_y, -1, MatAttr_All, 
             s_MaterialSampler, 1.0);
 

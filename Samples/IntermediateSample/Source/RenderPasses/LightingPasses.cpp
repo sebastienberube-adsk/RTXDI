@@ -421,6 +421,7 @@ void LightingPasses::FillResamplingConstants(
 
     constants.enablePreviousTLAS = lightingSettings.enablePreviousTLAS;
     constants.denoiserMode = lightingSettings.denoiserMode;
+    constants.enableMaterialSimilarityTest = lightingSettings.enableMaterialSimilarityTest;
     constants.sceneConstants.enableAlphaTestedGeometry = lightingSettings.enableAlphaTestedGeometry;
     constants.sceneConstants.enableTransparentGeometry = lightingSettings.enableTransparentGeometry;
     constants.visualizeRegirCells = lightingSettings.visualizeRegirCells;

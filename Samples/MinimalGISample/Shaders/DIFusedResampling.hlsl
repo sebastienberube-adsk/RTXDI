@@ -82,33 +82,12 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     float3 diffuse = 0;
     float3 specular = 0;
 
-    if (RAB_IsSurfaceValid(surface) && RTXDI_IsValidDIReservoir(reservoir))
+    if (RTXDI_IsValidDIReservoir(reservoir))
     {
-        RAB_LightInfo lightInfo = RAB_LoadLightInfo(RTXDI_GetDIReservoirLightIndex(reservoir), false);
-        lightSample = RAB_SamplePolymorphicLight(lightInfo, surface, RTXDI_GetDIReservoirSampleUV(reservoir));
+        ShadeSurfaceWithLightSample(reservoir, surface, lightSample,
+            /* enableVisibilityReuse = */ false, diffuse, specular);
 
-        if (lightSample.solidAnglePdf > 0)
-        {
-            float3 L = normalize(lightSample.position - surface.worldPos);
-
-            if (dot(L, surface.geoNormal) > 0)
-            {
-                float weight = RTXDI_GetDIReservoirInvPdf(reservoir) / lightSample.solidAnglePdf;
-                SplitBrdf brdf = EvaluateBrdf(surface, lightSample.position);
-
-                diffuse = brdf.demodulatedDiffuse * lightSample.radiance * weight;
-                specular = brdf.specular * lightSample.radiance * weight;
-                specular = DemodulateSpecular(surface.material.specularF0, specular);
-            }
-
-            bool visibility = RAB_GetConservativeVisibility(surface, lightSample);
-            if (!visibility)
-            {
-                diffuse = 0;
-                specular = 0;
-                RTXDI_StoreVisibilityInDIReservoir(reservoir, 0, true);
-            }
-        }
+        specular = DemodulateSpecular(surface.material.specularF0, specular);
     }
 
     RTXDI_StoreDIReservoir(reservoir, g_Const.restirDI.reservoirBufferParams,

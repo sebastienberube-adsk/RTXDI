@@ -63,7 +63,8 @@ public:
         ibool enableTransparentGeometry = true;
         ibool enableRayCounts = true;
         ibool visualizeRegirCells = false;
-        
+        ibool enableMaterialSimilarityTest = true;
+
         BRDFPathTracing_Parameters brdfptParams = GetDefaultBRDFPathTracingParams();
     };
 

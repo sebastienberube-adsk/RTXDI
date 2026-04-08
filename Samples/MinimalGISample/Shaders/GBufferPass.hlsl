@@ -11,6 +11,7 @@
 #pragma pack_matrix(row_major)
 
 #define RTXDI_ENABLE_PRESAMPLING 0
+#define ENABLE_METAL_ROUGH_RECONSTRUCTION 1
 
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"
 #include "PrimaryRays.hlsli"

@@ -219,7 +219,7 @@ struct ResamplingConstants
     uint enableBrdfIndirect;
     uint enableBrdfAdditiveBlend;    
     uint enableAccumulation; // StoreShadingOutput
-    uint pad1;
+    uint enableMaterialSimilarityTest;
 
     SceneConstants sceneConstants;
 

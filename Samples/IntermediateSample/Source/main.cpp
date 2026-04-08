@@ -1026,7 +1026,8 @@ public:
             else
                 m_gBufferPass->Render(m_commandList, m_view, m_viewPrevious, m_ui.gbufferSettings);
 
-            m_postprocessGBufferPass->Render(m_commandList, m_view);
+            if (!m_args.skipPostprocessGBuffer)
+                m_postprocessGBufferPass->Render(m_commandList, m_view);
         }
 
         // The light indexing members of frameParameters are written by PrepareLightsPass below

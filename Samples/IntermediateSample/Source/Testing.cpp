@@ -264,8 +264,8 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.restirDI.initialSamplingParams.localLightSamplingMode = ReSTIRDI_LocalLightSamplingMode::Uniform;
         ui.restirDI.initialSamplingParams.numPrimaryLocalLightSamples = 8;
         ui.restirDI.initialSamplingParams.numPrimaryBrdfSamples = 1;
-        ui.restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples = 1;
-        ui.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples = 1;
+        ui.restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples = 0;
+        ui.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples = 0;
         ui.restirDI.initialSamplingParams.enableInitialVisibility = true;
         ui.restirDI.initialSamplingParams.brdfCutoff = 0.0f;
 
@@ -287,9 +287,9 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.restirDI.spatialResamplingParams.spatialBiasCorrection = ReSTIRDI_SpatialBiasCorrectionMode::Basic;
         ui.restirDI.spatialResamplingParams.discountNaiveSamples = 0;
 
-        // Shading — match SDK defaults (MinimalGISample does not override these)
+        // Shading — match MinimalGISample (which uses fresh visibility checks, not reuse)
         ui.restirDI.shadingParams.enableFinalVisibility = true;
-        ui.restirDI.shadingParams.reuseFinalVisibility = true;
+        ui.restirDI.shadingParams.reuseFinalVisibility = false;
         ui.restirDI.shadingParams.finalVisibilityMaxAge = 4;
         ui.restirDI.shadingParams.finalVisibilityMaxDistance = 16.0f;
     }

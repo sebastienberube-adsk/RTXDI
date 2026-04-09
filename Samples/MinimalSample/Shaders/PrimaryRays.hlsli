@@ -61,6 +61,12 @@ PrimarySurfaceOutput TracePrimaryRay(int2 pixelPosition)
         float2 texGrad_x = texcoord_x - texcoord_0;
         float2 texGrad_y = texcoord_y - texcoord_0;
 
+        // Keep this in sync with MinimalGISample so Minimal_vs_MinimalGI_DI remains
+        // a like-for-like comparison. The 0.5 scale matches IntermediateSample's
+        // compat-mode effective gradient scale (via textureLodBias = -1).
+        texGrad_x *= 0.5;
+        texGrad_y *= 0.5;
+
         MaterialSample ms = sampleGeometryMaterial(gs, texGrad_x, texGrad_y, -1, MatAttr_All, 
             s_MaterialSampler, 1.0);
 

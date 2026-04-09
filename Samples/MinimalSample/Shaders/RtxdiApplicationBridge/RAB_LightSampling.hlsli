@@ -66,7 +66,11 @@ float RAB_GetLightSampleTargetPdfForSurface(RAB_LightSample lightSample, RAB_Sur
     // Second-best implementation: the PDF is proportional to the reflected radiance.
     // The best implementation would be taking visibility into account,
     // but that would be prohibitively expensive.
-    return calcLuminance(ShadeSurfaceWithLightSample(lightSample, surface));
+    //return calcLuminance(ShadeSurfaceWithLightSample(lightSample, surface));
+    // Use RTXDI_Luminance for p-hat, matching IntermediateSample and SDK-side
+    // luminance usage in MIS paths. This removes a BT.601 vs BT.709 mismatch
+    // that previously skewed relative sample weights.
+    return RTXDI_Luminance(ShadeSurfaceWithLightSample(lightSample, surface));
 }
 
 float RAB_GetGISampleTargetPdfForSurface(float3 samplePosition, float3 sampleRadiance, RAB_Surface surface)

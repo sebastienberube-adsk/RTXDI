@@ -286,6 +286,21 @@ TEST(SampleImageTests, MinimalGI_vs_Intermediate_DI)
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (no GI)"));
 }
 
+TEST(SampleImageTests, MinimalGI_vs_Intermediate_DI_Frame1)
+{
+    // Diagnostic parity test: compare frame 1 to isolate first-frame differences
+    // (initial sampling/shading/G-buffer/light prep) from temporal history effects.
+    // Keep this test to quickly detect structural mismatches before resampling
+    // history and accumulation can mask or redistribute errors.
+    fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_DI_F1_A.bmp";
+    fs::path outB = GetOutputDir() / "MinimalGI_vs_Intermediate_DI_F1_B.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample", "--disable-gi --minimal-sample-compatibility-mode", outA, 1), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--minimal-sample-compatibility-mode", outB, 1), 0)
+        << "IntermediateSample failed to run";
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (no GI, frame 1)"));
+}
+
 TEST(SampleImageTests, MinimalGI_vs_Intermediate_GI)
 {
     fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_A.bmp";

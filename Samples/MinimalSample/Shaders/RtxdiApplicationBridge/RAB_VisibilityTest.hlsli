@@ -6,8 +6,11 @@ RayDesc setupVisibilityRay(RAB_Surface surface, RAB_LightSample lightSample, flo
     float3 L = lightSample.position - surface.worldPos;
 
     RayDesc ray;
+    // Keep a small origin/end offset so visibility rays don't immediately self-hit
+    // the emitter/receiver triangles due to floating-point precision.
+    // This helper is used for conservative visibility checks (small epsilon).
     ray.TMin = offset;
-    ray.TMax = length(L) - offset;
+    ray.TMax = max(offset, length(L) - offset * 2);
     ray.Direction = normalize(L);
     ray.Origin = surface.worldPos;
 
@@ -49,6 +52,8 @@ float3 GetFinalVisibility(RaytracingAccelerationStructure accelStruct, RAB_Surfa
 {
     float3 L = samplePosition - surface.worldPos;
     // Use the same larger epsilon as other samples for stable final-shadow rays.
+    // Final visibility uses a larger epsilon than conservative visibility to
+    // better match IntermediateSample behavior and reduce near-contact acne.
     float offset = 0.01;
 
     RayDesc ray;

@@ -39,6 +39,13 @@ float RAB_EvaluateEnvironmentMapSamplingPdf(float3 L)
 // Evaluates pdf for a particular light
 float RAB_EvaluateLocalLightSourcePdf(uint lightIndex)
 {
+    // Parity fix with MinimalGISample:
+    // when local lights are sampled uniformly, BRDF-hit MIS must use the same
+    // source PDF (1 / N lights). Using the texture power PDF here while sampling
+    // uniformly biases MIS weights and drifts DI energy between samples.
+    if (g_Const.restirDI.initialSamplingParams.localLightSamplingMode == ReSTIRDI_LocalLightSamplingMode_UNIFORM)
+        return 1.0 / g_Const.lightBufferParams.localLightBufferRegion.numLights;
+
     uint2 pdfTextureSize = g_Const.localLightPdfTextureSize.xy;
     uint2 texelPosition = RTXDI_LinearIndexToZCurve(lightIndex);
     float texelValue = t_LocalLightPdfTexture[texelPosition].r;

@@ -61,6 +61,13 @@ PrimarySurfaceOutput TracePrimaryRay(int2 pixelPosition)
         float2 texGrad_x = texcoord_x - texcoord_0;
         float2 texGrad_y = texcoord_y - texcoord_0;
 
+        // Compatibility alignment: scale gradients by 0.5 to match the effective
+        // texture LOD behavior used by IntermediateSample compat mode
+        // (textureLodBias = -1 => textureGradientScale ~ 0.5). This is intentional
+        // and should be kept while MinimalGI_vs_Intermediate_DI parity is required.
+        texGrad_x *= 0.5;
+        texGrad_y *= 0.5;
+
         if (dot(gs.geometryNormal, ray.Direction) > 0)
             gs.geometryNormal = -gs.geometryNormal;
 

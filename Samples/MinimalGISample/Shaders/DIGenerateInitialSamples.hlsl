@@ -53,6 +53,11 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
             sampleParams, lightBufferParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM,
             lightSample);
 
+        // Align RNG state with IntermediateSample which compiles with
+        // RTXDI_ENABLE_PRESAMPLING=1 (SDK default), causing an extra
+        // RAB_GetNextRandom inside the environment reservoir combination step.
+        RAB_GetNextRandom(rng);
+
         if (g_Const.restirDI.initialSamplingParams.enableInitialVisibility && RTXDI_IsValidDIReservoir(reservoir))
         {
             if (!RAB_GetConservativeVisibility(surface, lightSample))

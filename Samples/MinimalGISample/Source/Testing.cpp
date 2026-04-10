@@ -131,7 +131,7 @@ void ProcessCommandLine(int argc, char** argv,
         ui.lightingSettings.numDisocclusionBoostSamples = 0;
         ui.lightingSettings.enableMaterialSimilarityTest = false;
         ui.lightingSettings.enableBasicToneMapping = true;
-        //TODO: Set basic tonemap bias to 0.035;
+        ui.lightingSettings.basicTonemapBias = 0.035f;
     }
 
     if (args.renderWidth > 0 && args.renderHeight > 0)

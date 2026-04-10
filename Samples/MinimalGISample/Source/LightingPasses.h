@@ -52,6 +52,7 @@ public:
         uint32_t numInitialBRDFSamples = 1;
         float brdfCutoff = 0.f;
         bool enableBasicToneMapping = false;
+        float basicTonemapBias = 0.005f; // Same as MinimalSample Render.hlsl basicToneMapping value
         bool enableBrdfIndirect = false;
     };
 

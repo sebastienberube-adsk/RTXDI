@@ -127,7 +127,7 @@ void main(uint2 globalIdx : SV_DispatchThreadID)
         compositedColor = float3(0, 0, 1);
 
     if (g_Const.enableBasicToneMapping)
-        compositedColor = basicToneMapping(compositedColor, 0.005);
+        compositedColor = basicToneMapping(compositedColor, 0.035);
 
     u_Output[globalIdx] = float4(compositedColor, 1.0);
 }

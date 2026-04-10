@@ -233,6 +233,7 @@ void LightingPasses::Render(
     constants.enableResampling = (localSettings.resamplingMode != rtxdi::ReSTIRDI_ResamplingMode::None);
     constants.enableMaterialSimilarityTest = localSettings.enableMaterialSimilarityTest;
     constants.enableBasicToneMapping = localSettings.enableBasicToneMapping;
+    constants.basicTonemapBias = localSettings.basicTonemapBias;
     constants.lightBufferParams = lightBufferParams;
     constants.runtimeParams = context.GetRuntimeParams();
 

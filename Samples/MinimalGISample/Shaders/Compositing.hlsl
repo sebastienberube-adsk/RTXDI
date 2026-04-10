@@ -36,7 +36,7 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         color = float3(0, 0, 1);
 
     if (g_Const.enableBasicToneMapping)
-        color = basicToneMapping(color, 0.005);
+        color = basicToneMapping(color, g_Const.basicTonemapBias);
 
     u_HdrColor[pixelPosition] = float4(color, 1.0);
 }

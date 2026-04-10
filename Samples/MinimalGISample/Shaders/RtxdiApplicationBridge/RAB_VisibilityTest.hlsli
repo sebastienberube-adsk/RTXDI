@@ -44,7 +44,20 @@ bool RAB_GetTemporalConservativeVisibility(RAB_Surface currentSurface, RAB_Surfa
 
 bool RAB_GetConservativeVisibility(RAB_Surface surface, float3 samplePosition)
 {
-    return true;
+    float3 L = samplePosition - surface.worldPos;
+    float offset = 0.001;
+
+    RayDesc ray;
+    ray.TMin = offset;
+    ray.TMax = max(offset, length(L) - offset * 2);
+    ray.Direction = normalize(L);
+    ray.Origin = surface.worldPos;
+
+    RayQuery<RAY_FLAG_CULL_NON_OPAQUE | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> rayQuery;
+    rayQuery.TraceRayInline(SceneBVH, RAY_FLAG_NONE, INSTANCE_MASK_OPAQUE, ray);
+    rayQuery.Proceed();
+
+    return (rayQuery.CommittedStatus() == COMMITTED_NOTHING);
 }
 
 float3 GetFinalVisibility(RaytracingAccelerationStructure accelStruct, RAB_Surface surface, float3 samplePosition)
@@ -69,7 +82,7 @@ float3 GetFinalVisibility(RaytracingAccelerationStructure accelStruct, RAB_Surfa
 
 bool RAB_GetTemporalConservativeVisibility(RAB_Surface currentSurface, RAB_Surface previousSurface, float3 samplePosition)
 {
-    return true;
+    return RAB_GetConservativeVisibility(currentSurface, samplePosition);
 }
 
 #endif // RAB_VISIBILITY_TEST_HLSLI

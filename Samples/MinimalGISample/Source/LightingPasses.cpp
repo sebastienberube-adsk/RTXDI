@@ -122,7 +122,7 @@ void LightingPasses::CreateBindingSet(
             nvrhi::BindingSetItem::StructuredBuffer_UAV(12, resources.GIReservoirBuffer),
             
             nvrhi::BindingSetItem::ConstantBuffer(0, m_constantBuffer),
-            nvrhi::BindingSetItem::Sampler(0, m_commonPasses->m_LinearWrapSampler),
+            nvrhi::BindingSetItem::Sampler(0, m_commonPasses->m_AnisotropicWrapSampler),
             nvrhi::BindingSetItem::Sampler(1, m_commonPasses->m_LinearWrapSampler)
         };
 

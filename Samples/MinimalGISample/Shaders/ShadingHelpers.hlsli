@@ -14,7 +14,12 @@ SplitBrdf EvaluateBrdf(RAB_Surface surface, float3 samplePosition)
 
     SplitBrdf brdf;
     brdf.demodulatedDiffuse = Lambert(surface.normal, -L);
-    brdf.specular = GGX_times_NdotL(V, L, surface.normal, max(surface.material.roughness, kMinRoughness), surface.material.specularF0);
+    // Guard roughness==0 to avoid degenerate GGX evaluation and align with
+    // corresponding minimal/intermediate compatibility behavior.
+    if (surface.material.roughness == 0)
+        brdf.specular = 0;
+    else
+        brdf.specular = GGX_times_NdotL(V, L, surface.normal, max(surface.material.roughness, kMinRoughness), surface.material.specularF0);
     return brdf;
 }
 

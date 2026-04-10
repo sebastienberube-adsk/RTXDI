@@ -48,9 +48,12 @@ float3 ShadeSurfaceWithLightSample(RAB_LightSample lightSample, RAB_Surface surf
 
     float3 V = surface.viewDir;
     
-    // Evaluate the BRDF
     float diffuse = Lambert(surface.normal, -L);
-    float3 specular = GGX_times_NdotL(V, L, surface.normal, max(RAB_GetMaterial(surface).roughness, kMinRoughness), RAB_GetMaterial(surface).specularF0);
+    float3 specular = 0;
+    // Guard roughness==0 to avoid degenerate GGX evaluation and keep behavior
+    // in step with the MinimalGISample compatibility path.
+    if (RAB_GetMaterial(surface).roughness > 0)
+        specular = GGX_times_NdotL(V, L, surface.normal, max(RAB_GetMaterial(surface).roughness, kMinRoughness), RAB_GetMaterial(surface).specularF0);
 
     float3 reflectedRadiance = lightSample.radiance * (diffuse * surface.material.diffuseAlbedo + specular);
 

@@ -1026,7 +1026,9 @@ public:
             else
                 m_gBufferPass->Render(m_commandList, m_view, m_viewPrevious, m_ui.gbufferSettings);
 
-            m_postprocessGBufferPass->Render(m_commandList, m_view);
+            // Allow testing mode to skip this pass to keep GBuffer closer to MinimalGISample.
+            if (!m_args.skipPostprocessGBuffer)
+                m_postprocessGBufferPass->Render(m_commandList, m_view);
         }
 
         // The light indexing members of frameParameters are written by PrepareLightsPass below

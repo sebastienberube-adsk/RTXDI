@@ -259,6 +259,8 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.gbufferSettings.enableTransparentGeometry = false;
         ui.aaMode = AntiAliasingMode::None;
         args.disableEnvironment = true;
+        // Match MinimalGISample path (no PostprocessGBuffer roughness shaping).
+        args.skipPostprocessGBuffer = true;
 
         // Initial sampling — match MinimalGISample LightingPasses::Settings + SDK defaults
         ui.restirDI.initialSamplingParams.localLightSamplingMode = ReSTIRDI_LocalLightSamplingMode::Uniform;

@@ -267,15 +267,14 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
             shadingOutput = ShadeSurfaceWithLightSample(lightSample, primary.surface)
                           * RTXDI_GetDIReservoirInvPdf(reservoir);
 
-            // Test if the selected light is visible from the surface
-            bool visibility = RAB_GetConservativeVisibility(primary.surface, lightSample);
-
-            // If not visible, discard the shading output and the light sample
-            if (!visibility)
+            // Align with MinimalGISample's final shading path: use final
+            // visibility for shading and store that evaluated visibility.
+            float3 visibility = GetFinalVisibility(SceneBVH, primary.surface, lightSample.position);
+            if (!any(visibility > 0))
             {
                 shadingOutput = 0;
-                RTXDI_StoreVisibilityInDIReservoir(reservoir, 0, true);
             }
+            RTXDI_StoreVisibilityInDIReservoir(reservoir, visibility, true);
         }
 
         // Compositing and tone mapping

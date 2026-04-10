@@ -292,6 +292,10 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         // MinimalGISample compatibility: disable material similarity filtering.
         ui.lightingSettings.enableMaterialSimilarityTest = false;
 
+        // Bypass IsComplexSurface gating so permutation sampling stays enabled,
+        // matching MinimalGISample behavior for this compat configuration.
+        ui.restirDI.temporalResamplingParams.permutationSamplingThreshold = 0.0f;
+
         // Shading — match MinimalGISample (which uses fresh visibility checks, not reuse)
         ui.restirDI.shadingParams.enableFinalVisibility = true;
         ui.restirDI.shadingParams.reuseFinalVisibility = false;

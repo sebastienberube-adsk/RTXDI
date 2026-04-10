@@ -52,12 +52,10 @@ bool ShadeSurfaceWithLightSample(
         if (!visibilityReused)
         {
             visibility = GetFinalVisibility(SceneBVH, surface, lightSample.position);
-
-            if (!any(visibility > 0))
-            {
-                RTXDI_StoreVisibilityInDIReservoir(reservoir, visibility, g_Const.restirDI.temporalResamplingParams.discardInvisibleSamples);
-                needToStore = true;
-            }
+            // Always persist evaluated visibility into the reservoir so temporal
+            // consumers see the latest result, matching IntermediateSample flow.
+            RTXDI_StoreVisibilityInDIReservoir(reservoir, visibility, g_Const.restirDI.temporalResamplingParams.discardInvisibleSamples);
+            needToStore = true;
         }
 
         lightSample.radiance *= visibility;
@@ -67,10 +65,15 @@ bool ShadeSurfaceWithLightSample(
 
     if (any(lightSample.radiance > 0))
     {
-        SplitBrdf brdf = EvaluateBrdf(surface, lightSample.position);
+        float3 L = normalize(lightSample.position - surface.worldPos);
+        // Reject samples below the geometric normal (same criterion as MinimalSample path).
+        if (dot(L, surface.geoNormal) > 0)
+        {
+            SplitBrdf brdf = EvaluateBrdf(surface, lightSample.position);
 
-        diffuse = brdf.demodulatedDiffuse * lightSample.radiance;
-        specular = brdf.specular * lightSample.radiance;
+            diffuse = brdf.demodulatedDiffuse * lightSample.radiance;
+            specular = brdf.specular * lightSample.radiance;
+        }
     }
 
     return needToStore;

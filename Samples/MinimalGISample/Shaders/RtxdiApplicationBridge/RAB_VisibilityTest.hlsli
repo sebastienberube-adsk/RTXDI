@@ -47,11 +47,13 @@ bool RAB_GetConservativeVisibility(RAB_Surface surface, float3 samplePosition)
 float3 GetFinalVisibility(RaytracingAccelerationStructure accelStruct, RAB_Surface surface, float3 samplePosition)
 {
     float3 L = samplePosition - surface.worldPos;
-    float offset = 0.001;
+    // Use a larger epsilon for final visibility to match IntermediateSample and
+    // reduce self-intersection near contact points.
+    float offset = 0.01;
 
     RayDesc ray;
     ray.TMin = offset;
-    ray.TMax = length(L) - offset;
+    ray.TMax = max(offset, length(L) - offset * 2);
     ray.Direction = normalize(L);
     ray.Origin = surface.worldPos;
 

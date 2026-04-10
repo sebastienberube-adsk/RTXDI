@@ -34,6 +34,7 @@ struct CommandLineArguments
     int renderWidth = 0;
     int renderHeight = 0;
     bool disableGI = false;
+    int diagMode = 0;
 };
 
 void ProcessCommandLine(int argc, char** argv,

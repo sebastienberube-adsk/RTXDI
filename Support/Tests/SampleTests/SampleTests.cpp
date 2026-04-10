@@ -320,3 +320,74 @@ TEST(SampleImageTests, Full_DX12_vs_VK)
         << "FullSample (VK) failed to run";
     EXPECT_TRUE(CompareImages(outDX12, outVK, "FullSample DX12 vs VK"));
 }
+
+// ---------------------------------------------------------------------------
+// G-Buffer diagnostic comparison tests
+// These tests compare individual G-buffer channels between MinimalGISample
+// and IntermediateSample using --diag-mode to bypass lighting and output
+// raw G-buffer values. Frame 1 is used to avoid temporal accumulation.
+// ---------------------------------------------------------------------------
+
+static const char* kMinimalGIDiagArgs  = "--disable-gi --intermediate-sample-compatibility-mode --diag-mode ";
+static const char* kIntermediateDiagArgs = "--minimal-gi-sample-compatibility-mode-di --diag-mode ";
+
+static StochasticThresholds GetGBufferThresholds()
+{
+    StochasticThresholds t = GetThresholds();
+    t.absAvgDeltaThreshold    = 0.02f;
+    t.relDifferenceThreshold  = 0.10f;
+    t.absStdDevDeltaThreshold = 0.05f;
+    t.imageAbsAvgDeltaThreshold  = 0.01f;
+    t.imageRelDifferenceThreshold = 0.02f;
+    return t;
+}
+
+TEST(SampleImageTests, GBuffer_Roughness_MinimalGI_vs_Intermediate)
+{
+    fs::path outA = GetOutputDir() / "GBuf_Roughness_MinimalGI.bmp";
+    fs::path outB = GetOutputDir() / "GBuf_Roughness_Intermediate.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample",    std::string(kMinimalGIDiagArgs) + "1", outA, 1), 0) << "MinimalGISample failed";
+    ASSERT_EQ(RunSample("IntermediateSample", std::string(kIntermediateDiagArgs) + "1", outB, 1), 0) << "IntermediateSample failed";
+    EXPECT_TRUE(CompareImages(outA, outB, "GBuffer Roughness", GetGBufferThresholds()));
+}
+
+TEST(SampleImageTests, GBuffer_Normals_MinimalGI_vs_Intermediate)
+{
+    fs::path outA = GetOutputDir() / "GBuf_Normals_MinimalGI.bmp";
+    fs::path outB = GetOutputDir() / "GBuf_Normals_Intermediate.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample",    std::string(kMinimalGIDiagArgs) + "2", outA, 1), 0) << "MinimalGISample failed";
+    ASSERT_EQ(RunSample("IntermediateSample", std::string(kIntermediateDiagArgs) + "2", outB, 1), 0) << "IntermediateSample failed";
+    EXPECT_TRUE(CompareImages(outA, outB, "GBuffer Normals", GetGBufferThresholds()));
+}
+
+TEST(SampleImageTests, GBuffer_DiffuseAlbedo_MinimalGI_vs_Intermediate)
+{
+    fs::path outA = GetOutputDir() / "GBuf_DiffAlbedo_MinimalGI.bmp";
+    fs::path outB = GetOutputDir() / "GBuf_DiffAlbedo_Intermediate.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample",    std::string(kMinimalGIDiagArgs) + "3", outA, 1), 0) << "MinimalGISample failed";
+    ASSERT_EQ(RunSample("IntermediateSample", std::string(kIntermediateDiagArgs) + "3", outB, 1), 0) << "IntermediateSample failed";
+    EXPECT_TRUE(CompareImages(outA, outB, "GBuffer DiffuseAlbedo", GetGBufferThresholds()));
+}
+
+TEST(SampleImageTests, GBuffer_SpecularF0_MinimalGI_vs_Intermediate)
+{
+    fs::path outA = GetOutputDir() / "GBuf_SpecF0_MinimalGI.bmp";
+    fs::path outB = GetOutputDir() / "GBuf_SpecF0_Intermediate.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample",    std::string(kMinimalGIDiagArgs) + "4", outA, 1), 0) << "MinimalGISample failed";
+    ASSERT_EQ(RunSample("IntermediateSample", std::string(kIntermediateDiagArgs) + "4", outB, 1), 0) << "IntermediateSample failed";
+    EXPECT_TRUE(CompareImages(outA, outB, "GBuffer SpecularF0", GetGBufferThresholds()));
+}
+
+TEST(SampleImageTests, GBuffer_Depth_MinimalGI_vs_Intermediate)
+{
+    fs::path outA = GetOutputDir() / "GBuf_Depth_MinimalGI.bmp";
+    fs::path outB = GetOutputDir() / "GBuf_Depth_Intermediate.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample",    std::string(kMinimalGIDiagArgs) + "5", outA, 1), 0) << "MinimalGISample failed";
+    ASSERT_EQ(RunSample("IntermediateSample", std::string(kIntermediateDiagArgs) + "5", outB, 1), 0) << "IntermediateSample failed";
+    EXPECT_TRUE(CompareImages(outA, outB, "GBuffer Depth", GetGBufferThresholds()));
+}

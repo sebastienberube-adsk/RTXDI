@@ -1410,6 +1410,8 @@ int main(int argc, char** argv)
 
     if (args.verbose)
         log::SetMinSeverity(log::Severity::Debug);
+
+    ui.diagMode = args.diagMode;
     
     app::DeviceManager* deviceManager = app::DeviceManager::Create(args.graphicsApi);
 

@@ -203,6 +203,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("verbose", "Enable debug log messages", value(args.verbose))
         ("vk", "Run the application using Vulkan (otherwise D3D12 if supported)", value(useVk))
         ("width", "Window width", value(deviceParams.backBufferWidth))
+        ("diag-mode", "Diagnostic output mode: 0=off, 1=roughness, 2=normals, 3=diffuseAlbedo, 4=specularF0, 5=depth", value(args.diagMode))
     ;
 
     try

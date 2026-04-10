@@ -548,6 +548,8 @@ int main(int argc, char** argv)
     ProcessCommandLine(argc, argv, deviceParams, ui, args);
 #endif
 
+    ui.lightingSettings.diagMode = args.diagMode;
+
     app::DeviceManager* deviceManager = app::DeviceManager::Create(args.graphicsApi);
     
     const char* apiString = nvrhi::utils::GraphicsAPIToString(deviceManager->GetGraphicsAPI());

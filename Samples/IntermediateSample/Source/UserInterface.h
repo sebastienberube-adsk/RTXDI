@@ -155,6 +155,7 @@ struct UIData
 
     uint32_t visualizationMode = 0; // See the VIS_MODE_XXX constants in ShaderParameters.h
     uint32_t debugRenderOutputBuffer = 0; // See DebugRenderOutput enum above
+    int diagMode = 0;
 
     bool storeReferenceImage = false;
     bool referenceImageCaptured = false;

@@ -54,6 +54,7 @@ public:
         bool enableBasicToneMapping = false;
         float basicTonemapBias = 0.005f; // Same as MinimalSample Render.hlsl basicToneMapping value
         bool enableBrdfIndirect = false;
+        int diagMode = 0;
     };
 
     LightingPasses(

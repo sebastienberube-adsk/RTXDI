@@ -47,9 +47,48 @@ float3 basicToneMapping(float3 color, float bias)
     return color;
 }
 
+bool outputDiagMode(uint2 globalIdx, int diagMode)
+{
+    if (diagMode == 1)
+    {
+        float roughness = Unpack_R8G8B8A8_Gamma_UFLOAT(t_GBufferSpecularRough[globalIdx]).a;
+        u_Output[globalIdx] = float4(roughness * float3(1, 1, 1), 1);
+        return true;
+    }
+    else if (diagMode == 2)
+    {
+        float3 normal = 0.5 + 0.5 * octToNdirUnorm32(t_GBufferNormals[globalIdx]);
+        u_Output[globalIdx] = float4(normal, 1);
+        return true;
+    }
+    else if (diagMode == 3)
+    {
+        float3 diffuseAlbedo = Unpack_R11G11B10_UFLOAT(t_GBufferDiffuseAlbedo[globalIdx]);
+        u_Output[globalIdx] = float4(diffuseAlbedo, 1);
+        return true;
+    }
+    else if (diagMode == 4)
+    {
+        float3 specularF0 = Unpack_R8G8B8A8_Gamma_UFLOAT(t_GBufferSpecularRough[globalIdx]).rgb;
+        u_Output[globalIdx] = float4(specularF0, 1);
+        return true;
+    }
+    else if (diagMode == 5)
+    {
+        float depth = t_GBufferDepth[globalIdx];
+        float normalizedDepth = saturate(depth / 10.0);
+        u_Output[globalIdx] = float4(normalizedDepth, normalizedDepth, normalizedDepth, 1);
+        return true;
+    }
+    return false;
+}
+
 [numthreads(8, 8, 1)]
 void main(uint2 globalIdx : SV_DispatchThreadID)
 {
+    if (g_Const.diagMode > 0 && outputDiagMode(globalIdx, g_Const.diagMode))
+        return;
+
     float3 compositedColor = 0;
 
     float depth = t_GBufferDepth[globalIdx];

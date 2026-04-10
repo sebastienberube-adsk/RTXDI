@@ -82,7 +82,7 @@ struct ResamplingConstants
 
     uint enableBrdfIndirect;
     float basicTonemapBias;
-    uint pad_1;
+    int diagMode;
     uint pad_2;
 };
 

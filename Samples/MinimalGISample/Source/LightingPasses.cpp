@@ -252,6 +252,7 @@ void LightingPasses::Render(
 
     constants.enableBrdfIndirect = localSettings.enableBrdfIndirect ? 1 : 0;
     constants.brdfPT.enableReSTIRGI = localSettings.enableBrdfIndirect ? 1 : 0;
+    constants.diagMode = localSettings.diagMode;
 
     commandList->writeBuffer(m_constantBuffer, &constants, sizeof(constants));
 

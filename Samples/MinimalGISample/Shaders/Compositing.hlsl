@@ -14,9 +14,48 @@
 
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"
 
+bool outputDiagMode(uint2 px, int diagMode)
+{
+    if (diagMode == 1)
+    {
+        float roughness = Unpack_R8G8B8A8_Gamma_UFLOAT(u_GBufferSpecularRough[px]).a;
+        u_HdrColor[px] = float4(roughness * float3(1, 1, 1), 1);
+        return true;
+    }
+    else if (diagMode == 2)
+    {
+        float3 normal = 0.5 + 0.5 * octToNdirUnorm32(u_GBufferNormals[px]);
+        u_HdrColor[px] = float4(normal, 1);
+        return true;
+    }
+    else if (diagMode == 3)
+    {
+        float3 diffuseAlbedo = Unpack_R11G11B10_UFLOAT(u_GBufferDiffuseAlbedo[px]);
+        u_HdrColor[px] = float4(diffuseAlbedo, 1);
+        return true;
+    }
+    else if (diagMode == 4)
+    {
+        float3 specularF0 = Unpack_R8G8B8A8_Gamma_UFLOAT(u_GBufferSpecularRough[px]).rgb;
+        u_HdrColor[px] = float4(specularF0, 1);
+        return true;
+    }
+    else if (diagMode == 5)
+    {
+        float depth = u_GBufferDepth[px];
+        float normalizedDepth = saturate(depth / 10.0);
+        u_HdrColor[px] = float4(normalizedDepth, normalizedDepth, normalizedDepth, 1);
+        return true;
+    }
+    return false;
+}
+
 [numthreads(RTXDI_SCREEN_SPACE_GROUP_SIZE, RTXDI_SCREEN_SPACE_GROUP_SIZE, 1)]
 void main(uint2 pixelPosition : SV_DispatchThreadID)
 {
+    if (g_Const.diagMode > 0 && outputDiagMode(pixelPosition, g_Const.diagMode))
+        return;
+
     float3 diffuseAlbedo = Unpack_R11G11B10_UFLOAT(u_GBufferDiffuseAlbedo[pixelPosition]);
     float3 specularF0 = Unpack_R8G8B8A8_Gamma_UFLOAT(u_GBufferSpecularRough[pixelPosition]).rgb;
     float3 emissive = u_Emissive[pixelPosition].rgb;

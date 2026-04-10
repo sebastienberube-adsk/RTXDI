@@ -145,6 +145,7 @@ struct CompositingConstants
     float noiseClampHigh;
     uint checkerboard;
     uint enableBasicToneMapping;
+    int diagMode;
 };
 
 struct AccumulationConstants

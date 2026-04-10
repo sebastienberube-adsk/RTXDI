@@ -73,17 +73,12 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
 
         if (RTXDI_IsValidDIReservoir(reservoir))
         {
-            float3 L = normalize(lightSample.position - secondarySurface.worldPos);
-            if (lightSample.solidAnglePdf > 0 && dot(L, secondarySurface.geoNormal) > 0)
-            {
-                float weight = RTXDI_GetDIReservoirInvPdf(reservoir) / lightSample.solidAnglePdf;
-                SplitBrdf brdf = EvaluateBrdf(secondarySurface, lightSample.position);
+            float3 indirectDiffuse = 0;
+            float3 indirectSpecular = 0;
+            ShadeSurfaceWithLightSample(reservoir, secondarySurface, lightSample,
+                false, indirectDiffuse, indirectSpecular);
 
-                float3 indirectDiffuse = brdf.demodulatedDiffuse * lightSample.radiance * weight;
-                float3 indirectSpecular = brdf.specular * lightSample.radiance * weight;
-
-                radiance += indirectDiffuse * secondarySurface.material.diffuseAlbedo + indirectSpecular;
-            }
+            radiance += indirectDiffuse * secondarySurface.material.diffuseAlbedo + indirectSpecular;
         }
 
         float indirectLuminance = calcLuminance(radiance);

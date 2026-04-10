@@ -9,6 +9,7 @@
  **************************************************************************/
 
 #include <ImageComparison.h>
+#include "SampleTests.h"
 #include <gtest/gtest.h>
 #include <stb_image_write.h>
 
@@ -28,32 +29,6 @@
 #include <vector>
 
 namespace fs = std::filesystem;
-
-// ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
-
-// Thresholds calibrated from MinimalSample_SelfComparison (frame 50 vs 75,
-// 32px tiles): the natural stochastic variance of equivalent images rendered
-// with different random seeds.  Measured maximums were:
-//   absAvgDelta  = 0.0473    relDifference = 24.6%    absStdDevDelta = 0.0655
-// Whole-image RGB averages measured across repeated self-tests:
-//   imageAbsAvgDelta ~= 0.00328 max, imageRelDiff ~= 0.428% max
-// Values below include ~15% headroom for run-to-run variation.
-static StochasticThresholds GetThresholds()
-{
-    StochasticThresholds t;
-    t.tileSize                = 32;
-    t.absAvgDeltaThreshold    = 0.075f;
-    t.relDifferenceThreshold  = 0.35f;
-    t.absStdDevDeltaThreshold = 0.150f;
-    // Whole-image average gate (per channel): abs OR relative, same policy as tiles.
-    // The value is anchored on repeated self-comparison maxima (~0.0033 abs, ~0.43% rel)
-    // with additional headroom so cross-sample parity tests don't fail on tiny global bias.
-    t.imageAbsAvgDeltaThreshold = 0.006f;
-    t.imageRelDifferenceThreshold = 0.008f; // 0.8%
-    return t;
-}
 
 static const char* kScene = "/Assets/Media/livingroom_Original.scene.json";
 
@@ -196,7 +171,8 @@ static void SaveAnnotatedImage(const uint8_t* pixels, size_t width, size_t heigh
 }
 
 static ::testing::AssertionResult CompareImages(
-    const fs::path& imageA, const fs::path& imageB, const std::string& label)
+    const fs::path& imageA, const fs::path& imageB, const std::string& label,
+    const StochasticThresholds& thresholds = GetThresholds())
 {
     size_t wA = 0, hA = 0, wB = 0, hB = 0;
     auto pixA = LoadImageRGBA8(imageA.string(), wA, hA);
@@ -210,7 +186,6 @@ static ::testing::AssertionResult CompareImages(
         return ::testing::AssertionFailure()
             << "Size mismatch: " << wA << "x" << hA << " vs " << wB << "x" << hB;
 
-    auto thresholds = GetThresholds();
     auto result = CompareStochastic(pixA.data(), pixB.data(), wA, hA, thresholds);
     std::string summary = FormatStochasticSummary(result, thresholds);
     std::cout << "  [" << label << "] " << summary;

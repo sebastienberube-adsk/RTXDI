@@ -37,6 +37,8 @@ namespace fs = std::filesystem;
 // 32px tiles): the natural stochastic variance of equivalent images rendered
 // with different random seeds.  Measured maximums were:
 //   absAvgDelta  = 0.0473    relDifference = 24.6%    absStdDevDelta = 0.0655
+// Whole-image RGB averages measured across repeated self-tests:
+//   imageAbsAvgDelta ~= 0.00328 max, imageRelDiff ~= 0.428% max
 // Values below include ~15% headroom for run-to-run variation.
 static StochasticThresholds GetThresholds()
 {
@@ -45,6 +47,11 @@ static StochasticThresholds GetThresholds()
     t.absAvgDeltaThreshold    = 0.075f;
     t.relDifferenceThreshold  = 0.35f;
     t.absStdDevDeltaThreshold = 0.150f;
+    // Whole-image average gate (per channel): abs OR relative, same policy as tiles.
+    // The value is anchored on repeated self-comparison maxima (~0.0033 abs, ~0.43% rel)
+    // with additional headroom so cross-sample parity tests don't fail on tiny global bias.
+    t.imageAbsAvgDeltaThreshold = 0.006f;
+    t.imageRelDifferenceThreshold = 0.008f; // 0.8%
     return t;
 }
 

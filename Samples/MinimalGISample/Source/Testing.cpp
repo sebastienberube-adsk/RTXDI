@@ -79,6 +79,7 @@ void ProcessCommandLine(int argc, char** argv,
         ("disable-gi", "Disable ReSTIR GI (DI only)", value<bool>())
         ("aa-mode", "Anti-aliasing mode: OFF, ACC (accumulation)", value<std::string>())
         ("minimal-sample-compatibility-mode", "Configure settings to match MinimalSample output for testing", value<bool>())
+        ("intermediate-sample-compatibility-mode", "Configure settings to match IntermediateSample output for testing", value<bool>())
         ;
 
     auto result = options.parse(argc, argv);
@@ -120,6 +121,17 @@ void ProcessCommandLine(int argc, char** argv,
         ui.lightingSettings.numDisocclusionBoostSamples = 0;
         ui.lightingSettings.enableMaterialSimilarityTest = false;
         ui.lightingSettings.enableBasicToneMapping = true;
+    }
+
+    if (result.count("intermediate-sample-compatibility-mode"))
+    {
+        // Match IntermediateSample's "minimal-sample-compatibility-mode" settings
+        ui.lightingSettings.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
+        ui.lightingSettings.discardInvisibleSamples = true;
+        ui.lightingSettings.numDisocclusionBoostSamples = 0;
+        ui.lightingSettings.enableMaterialSimilarityTest = false;
+        ui.lightingSettings.enableBasicToneMapping = true;
+        //TODO: Set basic tonemap bias to 0.035;
     }
 
     if (args.renderWidth > 0 && args.renderHeight > 0)

@@ -167,6 +167,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
     bool useVk = false;
     ibool checkerboard = false;
     bool minimalSampleCompat = false;
+    bool minimalGISampleCompat = false;
     options.add_options()
         ("aa-mode", "Anti-aliasing mode: OFF, ACC, TAA", value(ui.aaMode))
         ("alpha-tested", "Alpha-tested materials toggle", value(ui.gbufferSettings.enableAlphaTestedGeometry))
@@ -193,10 +194,11 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("save-file", "Save frame to file and exit", value(args.saveFrameFileName))
         ("save-frame", "Index of the frame to save, default is 0", value(args.saveFrameIndex))
         ("scene", "Scene file path (VFS path, e.g. /Assets/Media/arcade.scene.json or /Assets/Media/Arcade/Arcade.gltf)", value(args.scenePath))
-        ("basic-tonemap", "Basic tone mapping in compositing (same as MinimalSample)", value(ui.enableBasicToneMapping))
         ("environment", "Environment map rendering toggle", value(ui.enableEnvironmentRendering))
-        ("minimal-sample-compatibility-mode", "Match MinimalGISample parameter defaults", value(minimalSampleCompat))
+        ("minimal-gi-sample-compatibility-mode-di", "Match MinimalGISample parameter defaults", value(minimalSampleCompat))
+        ("minimal-gi-sample-compatibility-mode-gi", "Match MinimalGISample parameters for testing GI", value(minimalGISampleCompat))
         ("tone-mapping", "Tone mapping toggle", value(ui.enableToneMapping))
+        ("basic-tonemap", "Basic tone mapping in compositing (same as MinimalSample)", value(ui.enableBasicToneMapping))
         ("transparent", "Transparent materials toggle", value(ui.gbufferSettings.enableTransparentGeometry))
         ("verbose", "Enable debug log messages", value(args.verbose))
         ("vk", "Run the application using Vulkan (otherwise D3D12 if supported)", value(useVk))
@@ -247,11 +249,15 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
     if (checkerboard)
         ui.restirDIStaticParams.CheckerboardSamplingMode = rtxdi::CheckerboardMode::Black;
 
-    if (minimalSampleCompat)
+    bool minimalSampleCompatibilityMode = minimalSampleCompat || minimalGISampleCompat;
+    if (minimalSampleCompatibilityMode)
     {
+        // Match MinimalGISample's "intermediate-sample-compatibility-mode" settings
+        // 
         // Match MinimalGISample's resampling mode and general app settings
         ui.restirDI.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
         ui.enableBasicToneMapping = true;
+        //TODO: Set basic tonemap bias to 0.035;
         ui.enableToneMapping = false;
         ui.enableBloom = false;
         ui.rasterizeGBuffer = false;
@@ -301,6 +307,12 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.restirDI.shadingParams.reuseFinalVisibility = false;
         ui.restirDI.shadingParams.finalVisibilityMaxAge = 4;
         ui.restirDI.shadingParams.finalVisibilityMaxDistance = 16.0f;
+    }
+    // Additional settings when testing GI
+    if (minimalGISampleCompat)
+    {
+        // TODO: Enable ReSTIRGI (fused spatiotemporal)
+        //
     }
 }
 

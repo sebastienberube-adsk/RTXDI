@@ -61,6 +61,11 @@ PrimarySurfaceOutput TracePrimaryRay(int2 pixelPosition)
         float2 texGrad_x = texcoord_x - texcoord_0;
         float2 texGrad_y = texcoord_y - texcoord_0;
 
+        // Align with IntermediateSample GBuffer convention: force geometry normal
+        // to oppose the camera ray for stable front/back-face shading decisions.
+        if (dot(gs.geometryNormal, ray.Direction) > 0)
+            gs.geometryNormal = -gs.geometryNormal;
+            
         // Keep this in sync with MinimalGISample so Minimal_vs_MinimalGI_DI remains
         // a like-for-like comparison. The 0.5 scale matches IntermediateSample's
         // compat-mode effective gradient scale (via textureLodBias = -1).

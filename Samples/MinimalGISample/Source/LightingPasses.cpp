@@ -153,6 +153,7 @@ void LightingPasses::CreatePipeline()
     m_shadeSecondarySurfacesShader = m_shaderFactory->CreateShader("app/ShadeSecondarySurfaces.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_giTemporalResamplingShader = m_shaderFactory->CreateShader("app/GITemporalResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_giSpatialResamplingShader = m_shaderFactory->CreateShader("app/GISpatialResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_giFusedResamplingShader = m_shaderFactory->CreateShader("app/GIFusedResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_giFinalShadingShader = m_shaderFactory->CreateShader("app/GIFinalShading.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_compositingShader = m_shaderFactory->CreateShader("app/Compositing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
@@ -188,6 +189,9 @@ void LightingPasses::CreatePipeline()
 
     pipelineDesc.CS = m_giSpatialResamplingShader;
     m_giSpatialResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_giFusedResamplingShader;
+    m_giFusedResamplingPipeline = m_device->createComputePipeline(pipelineDesc);
 
     pipelineDesc.CS = m_giFinalShadingShader;
     m_giFinalShadingPipeline = m_device->createComputePipeline(pipelineDesc);
@@ -244,6 +248,7 @@ void LightingPasses::Render(
     constants.restirDI.spatialResamplingParams = context.GetSpatialResamplingParameters();
     constants.restirDI.shadingParams = context.GetShadingParameters();
 
+    giContext.SetResamplingMode(localSettings.giResamplingMode);
     constants.restirGI.reservoirBufferParams = giContext.GetReservoirBufferParameters();
     constants.restirGI.bufferIndices = giContext.GetBufferIndices();
     constants.restirGI.temporalResamplingParams = giContext.GetTemporalResamplingParameters();
@@ -349,19 +354,39 @@ void LightingPasses::Render(
 
         nvrhi::utils::BufferUavBarrier(commandList, m_giReservoirBuffer);
 
-        commandList->beginMarker("GITemporalResampling");
-        state.pipeline = m_giTemporalResamplingPipeline;
-        commandList->setComputeState(state);
-        commandList->dispatch(dispatchWidth, dispatchHeight);
-        commandList->endMarker();
+        const rtxdi::ReSTIRGI_ResamplingMode giMode = localSettings.giResamplingMode;
+        if (giMode == rtxdi::ReSTIRGI_ResamplingMode::FusedSpatiotemporal)
+        {
+            commandList->beginMarker("GIFusedResampling");
+            state.pipeline = m_giFusedResamplingPipeline;
+            commandList->setComputeState(state);
+            commandList->dispatch(dispatchWidth, dispatchHeight);
+            commandList->endMarker();
+        }
+        else
+        {
+            if (giMode == rtxdi::ReSTIRGI_ResamplingMode::Temporal ||
+                giMode == rtxdi::ReSTIRGI_ResamplingMode::TemporalAndSpatial)
+            {
+                commandList->beginMarker("GITemporalResampling");
+                state.pipeline = m_giTemporalResamplingPipeline;
+                commandList->setComputeState(state);
+                commandList->dispatch(dispatchWidth, dispatchHeight);
+                commandList->endMarker();
+            }
 
-        nvrhi::utils::BufferUavBarrier(commandList, m_giReservoirBuffer);
+            if (giMode == rtxdi::ReSTIRGI_ResamplingMode::Spatial ||
+                giMode == rtxdi::ReSTIRGI_ResamplingMode::TemporalAndSpatial)
+            {
+                nvrhi::utils::BufferUavBarrier(commandList, m_giReservoirBuffer);
 
-        commandList->beginMarker("GISpatialResampling");
-        state.pipeline = m_giSpatialResamplingPipeline;
-        commandList->setComputeState(state);
-        commandList->dispatch(dispatchWidth, dispatchHeight);
-        commandList->endMarker();
+                commandList->beginMarker("GISpatialResampling");
+                state.pipeline = m_giSpatialResamplingPipeline;
+                commandList->setComputeState(state);
+                commandList->dispatch(dispatchWidth, dispatchHeight);
+                commandList->endMarker();
+            }
+        }
 
         nvrhi::utils::BufferUavBarrier(commandList, m_giReservoirBuffer);
         nvrhi::utils::BufferUavBarrier(commandList, m_secondaryGBuffer);

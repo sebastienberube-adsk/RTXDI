@@ -54,6 +54,7 @@ public:
         bool enableBasicToneMapping = false;
         float basicTonemapBias = 0.005f; // Same as MinimalSample Render.hlsl basicToneMapping value
         bool enableBrdfIndirect = false;
+        rtxdi::ReSTIRGI_ResamplingMode giResamplingMode = rtxdi::ReSTIRGI_ResamplingMode::TemporalAndSpatial;
         int diagMode = 0;
     };
 
@@ -95,6 +96,7 @@ private:
     nvrhi::ShaderHandle m_shadeSecondarySurfacesShader;
     nvrhi::ShaderHandle m_giTemporalResamplingShader;
     nvrhi::ShaderHandle m_giSpatialResamplingShader;
+    nvrhi::ShaderHandle m_giFusedResamplingShader;
     nvrhi::ShaderHandle m_giFinalShadingShader;
     nvrhi::ShaderHandle m_compositingShader;
 
@@ -108,6 +110,7 @@ private:
     nvrhi::ComputePipelineHandle m_shadeSecondarySurfacesPipeline;
     nvrhi::ComputePipelineHandle m_giTemporalResamplingPipeline;
     nvrhi::ComputePipelineHandle m_giSpatialResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_giFusedResamplingPipeline;
     nvrhi::ComputePipelineHandle m_giFinalShadingPipeline;
     nvrhi::ComputePipelineHandle m_compositingPipeline;
 

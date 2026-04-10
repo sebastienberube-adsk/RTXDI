@@ -33,7 +33,6 @@ struct CommandLineArguments
     std::string scenePath;
     int renderWidth = 0;
     int renderHeight = 0;
-    bool disableGI = false;
     int diagMode = 0;
 };
 

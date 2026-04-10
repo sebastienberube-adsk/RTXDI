@@ -277,7 +277,7 @@ TEST(SampleImageTests, MinimalGI_vs_Intermediate_DI)
     fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_DI_A.bmp";
     fs::path outB = GetOutputDir() / "MinimalGI_vs_Intermediate_DI_B.bmp";
     
-    ASSERT_EQ(RunSample("MinimalGISample", "--disable-gi --intermediate-sample-compatibility-mode", outA, 64), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("MinimalGISample", "--indirect-mode NONE --intermediate-sample-compatibility-mode", outA, 64), 0) << "MinimalGISample failed to run";
     ASSERT_EQ(RunSample("IntermediateSample", "--minimal-gi-sample-compatibility-mode-di", outB, 64), 0)
         << "IntermediateSample failed to run";
     StochasticThresholds t = GetThresholds();
@@ -291,7 +291,7 @@ TEST(SampleImageTests, MinimalGI_vs_Intermediate_GI)
     fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_A.bmp";
     fs::path outB = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_B.bmp";
 
-    ASSERT_EQ(RunSample("MinimalGISample", "--intermediate-sample-compatibility-mode", outA, 64), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("MinimalGISample", "--indirect-mode RESTIRGI --intermediate-sample-compatibility-mode", outA, 64), 0) << "MinimalGISample failed to run";
     ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode RESTIRGI --minimal-gi-sample-compatibility-mode-gi", outB, 64), 0)
         << "IntermediateSample failed to run";
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (GI)"));
@@ -328,7 +328,7 @@ TEST(SampleImageTests, Full_DX12_vs_VK)
 // raw G-buffer values. Frame 1 is used to avoid temporal accumulation.
 // ---------------------------------------------------------------------------
 
-static const char* kMinimalGIDiagArgs  = "--disable-gi --intermediate-sample-compatibility-mode --diag-mode ";
+static const char* kMinimalGIDiagArgs  = "--indirect-mode NONE --intermediate-sample-compatibility-mode --diag-mode ";
 static const char* kIntermediateDiagArgs = "--minimal-gi-sample-compatibility-mode-di --diag-mode ";
 
 static StochasticThresholds GetGBufferThresholds()

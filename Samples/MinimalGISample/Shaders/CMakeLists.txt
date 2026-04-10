@@ -36,6 +36,7 @@ set(shaders
    ShadeSecondarySurfaces.hlsl
    GITemporalResampling.hlsl
    GISpatialResampling.hlsl
+   GIFusedResampling.hlsl
    GIFinalShading.hlsl
    Compositing.hlsl
    AccumulationPass.hlsl

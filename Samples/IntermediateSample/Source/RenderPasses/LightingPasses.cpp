@@ -421,6 +421,8 @@ void LightingPasses::FillResamplingConstants(
 
     constants.enablePreviousTLAS = lightingSettings.enablePreviousTLAS;
     constants.denoiserMode = lightingSettings.denoiserMode;
+    // Propagate UI toggle into shader constants (used by fused/temporal/spatial DI).
+    constants.enableMaterialSimilarityTest = lightingSettings.enableMaterialSimilarityTest;
     constants.sceneConstants.enableAlphaTestedGeometry = lightingSettings.enableAlphaTestedGeometry;
     constants.sceneConstants.enableTransparentGeometry = lightingSettings.enableTransparentGeometry;
     constants.visualizeRegirCells = lightingSettings.visualizeRegirCells;

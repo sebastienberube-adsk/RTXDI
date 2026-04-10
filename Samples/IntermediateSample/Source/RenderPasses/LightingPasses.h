@@ -63,7 +63,10 @@ public:
         ibool enableTransparentGeometry = true;
         ibool enableRayCounts = true;
         ibool visualizeRegirCells = false;
-        
+        // Keep configurable so compat mode can match MinimalGISample where
+        // material similarity is disabled for temporal/spatial reuse decisions.
+        ibool enableMaterialSimilarityTest = true;
+
         BRDFPathTracing_Parameters brdfptParams = GetDefaultBRDFPathTracingParams();
     };
 

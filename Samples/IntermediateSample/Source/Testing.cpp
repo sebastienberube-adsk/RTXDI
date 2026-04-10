@@ -287,6 +287,9 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.restirDI.spatialResamplingParams.spatialBiasCorrection = ReSTIRDI_SpatialBiasCorrectionMode::Basic;
         ui.restirDI.spatialResamplingParams.discountNaiveSamples = 0;
 
+        // MinimalGISample compatibility: disable material similarity filtering.
+        ui.lightingSettings.enableMaterialSimilarityTest = false;
+
         // Shading — match MinimalGISample (which uses fresh visibility checks, not reuse)
         ui.restirDI.shadingParams.enableFinalVisibility = true;
         ui.restirDI.shadingParams.reuseFinalVisibility = false;

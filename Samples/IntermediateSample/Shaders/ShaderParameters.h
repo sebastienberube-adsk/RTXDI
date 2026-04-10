@@ -219,7 +219,9 @@ struct ResamplingConstants
     uint enableBrdfIndirect;
     uint enableBrdfAdditiveBlend;    
     uint enableAccumulation; // StoreShadingOutput
-    uint pad1;
+    // Thread through the UI/runtime toggle so shader-side resampling can
+    // align with MinimalGISample compatibility settings.
+    uint enableMaterialSimilarityTest;
 
     SceneConstants sceneConstants;
 

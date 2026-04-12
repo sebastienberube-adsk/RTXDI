@@ -24,12 +24,28 @@ float RAB_EvaluateLocalLightSourcePdf(uint lightIndex)
 
 float3 RAB_GetReflectedRadianceForSurface(float3 incomingRadianceLocation, float3 incomingRadiance, RAB_Surface surface)
 {
-    return float3(0.0, 0.0, 0.0);
+    float3 L = normalize(incomingRadianceLocation - surface.worldPos);
+
+    if (dot(L, surface.geoNormal) <= 0)
+        return 0;
+
+    float d = Lambert(surface.normal, -L);
+    float3 s;
+    // Keep GGX disabled at exact roughness=0 to avoid undefined/unstable behavior
+    // around the microfacet distribution denominator. This matches the guard used
+    // in Intermediate/Full bridge code paths and keeps target-PDF evaluation stable.
+    if (surface.material.roughness == 0)
+        s = 0;
+    else
+        s = GGX_times_NdotL(surface.viewDir, L, surface.normal,
+            max(surface.material.roughness, kMinRoughness), surface.material.specularF0);
+
+    return incomingRadiance * (d * surface.material.diffuseAlbedo + s);
 }
 
 float RAB_GetReflectedLuminanceForSurface(float3 incomingRadianceLocation, float3 incomingRadiance, RAB_Surface surface)
 {
-    return 0.0;
+    return RTXDI_Luminance(RAB_GetReflectedRadianceForSurface(incomingRadianceLocation, incomingRadiance, surface));
 }
 
 // Evaluate the surface BRDF and compute the weighted reflected radiance for the given light sample
@@ -50,7 +66,11 @@ float3 ShadeSurfaceWithLightSample(RAB_LightSample lightSample, RAB_Surface surf
     
     // Evaluate the BRDF
     float diffuse = Lambert(surface.normal, -L);
-    float3 specular = GGX_times_NdotL(V, L, surface.normal, max(RAB_GetMaterial(surface).roughness, kMinRoughness), RAB_GetMaterial(surface).specularF0);
+    float3 specular = 0;
+    // Same roughness=0 guard as above: avoid evaluating GGX at a degenerate
+    // roughness and keep shading/PDF behavior aligned with other samples.
+    if (RAB_GetMaterial(surface).roughness > 0)
+        specular = GGX_times_NdotL(V, L, surface.normal, max(RAB_GetMaterial(surface).roughness, kMinRoughness), RAB_GetMaterial(surface).specularF0);
 
     float3 reflectedRadiance = lightSample.radiance * (diffuse * surface.material.diffuseAlbedo + specular);
 
@@ -63,12 +83,16 @@ float RAB_GetLightSampleTargetPdfForSurface(RAB_LightSample lightSample, RAB_Sur
     // Second-best implementation: the PDF is proportional to the reflected radiance.
     // The best implementation would be taking visibility into account,
     // but that would be prohibitively expensive.
-    return calcLuminance(ShadeSurfaceWithLightSample(lightSample, surface));
+    //return calcLuminance(ShadeSurfaceWithLightSample(lightSample, surface));
+    // Use RTXDI_Luminance for p-hat, matching IntermediateSample and SDK-side
+    // luminance usage in MIS paths. This removes a BT.601 vs BT.709 mismatch
+    // that previously skewed relative sample weights.
+    return RTXDI_Luminance(ShadeSurfaceWithLightSample(lightSample, surface));
 }
 
 float RAB_GetGISampleTargetPdfForSurface(float3 samplePosition, float3 sampleRadiance, RAB_Surface surface)
 {
-    return 0.0;
+    return RTXDI_Luminance(RAB_GetReflectedRadianceForSurface(samplePosition, sampleRadiance, surface));
 }
 
 void RAB_GetLightDirDistance(RAB_Surface surface, RAB_LightSample lightSample,

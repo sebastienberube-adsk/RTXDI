@@ -205,110 +205,30 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         //    uint index;
         //};
         RAB_RandomSamplerState rng = RAB_InitRandomSampler(pixelPosition, 1);
+        RAB_RandomSamplerState tileRng = RAB_InitRandomSampler(pixelPosition / RTXDI_TILE_SIZE_IN_PIXELS, 1);
 
-        //struct RTXDI_SampleParameters{
-        //    uint numLocalLightSamples;
-        //    uint numInfiniteLightSamples;
-        //    uint numEnvironmentMapSamples;
-        //    uint numBrdfSamples;
-        //
-        //    uint numMisSamples;
-        //    float localLightMisWeight;
-        //    float environmentMapMisWeight;
-        //    float brdfMisWeight;
-        //    float brdfCutoff;
-        //    float brdfRayMinT;
-        //};
         RTXDI_SampleParameters sampleParams = RTXDI_InitSampleParameters(
-            g_Const.numInitialSamples, // local light samples 
-            0, // infinite light samples
-            0, // environment map samples
+            g_Const.numInitialSamples,
+            0, 0,
             g_Const.numInitialBRDFSamples,
             g_Const.brdfCutoff,
             0.001f);
 
-        // Generate the initial sample
-        //struct RAB_LightSample{
-        //    float3 position;
-        //    float3 normal;
-        //    float3 radiance;
-        //    float solidAnglePdf;
-        //};
         RAB_LightSample lightSample = RAB_EmptyLightSample();
 
-        //-----------------------------------------------------------------------
-        //|                    LOCAL LIGHT SAMPLING                             |
-        //|                    (numInitialSamples)                              |
-        //|                                                                     |
-        //|     Light A -----|                                                  |
-        //|     Light B -----|--> Pick random lights --> Check if visible       |
-        //|     Light C -----|    from buffer            to surface             |
-        //|     Light D -----|                                                  |
-        //|                                                                     |
-        //|  + Fast (no ray tracing per sample)                                 |
-        //|  - May pick lights that don't contribute (occluded, wrong side)     |
-        //-----------------------------------------------------------------------
-        RTXDI_DIReservoir localReservoir = RTXDI_SampleLocalLights(rng, rng, primary.surface,
-            sampleParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM, lightBufferParams.localLightBufferRegion, lightSample);
+        reservoir = RTXDI_SampleLightsForSurface(rng, tileRng, primary.surface,
+            sampleParams, lightBufferParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM,
+            lightSample);
 
-        // This is seemingly necessary to "undo" the finalization step done inside RTXDI_SampleLocalLights,
-        // which divides the reservoir weightSum by the number of samples considered (M).
-        // So this step is essentially converting the reservoir back to "unfinalized" form
-        // into the accumulator reservoir.
-        // Note: This is not exactly the inverse of the finalization step, because the finalization step
-        // divides "newReservoir.weightSum" by sampleParams.numMisSamples, which is typically the sum of
-        // all MIS samples (Brdf, LocalLights, env maps).
-        RTXDI_CombineDIReservoirs(reservoir, localReservoir, 0.5, localReservoir.targetPdf);
+        // Align RNG state with IntermediateSample which compiles with
+        // RTXDI_ENABLE_PRESAMPLING=1 (SDK default), causing an extra
+        // RAB_GetNextRandom inside the environment reservoir combination step.
+        RAB_GetNextRandom(rng);
 
-        // Resample BRDF samples.
-        RAB_LightSample brdfSample = RAB_EmptyLightSample();
-
-        //-----------------------------------------------------------------------
-        //|                         BRDF SAMPLING                               |
-        //|                         (numInitialBRDFSamples)                     |
-        //|                                                                     |
-        //|                        / Ray 1 -> hits Light A                      |
-        //|     Surface ----------/  Ray 2 -> hits nothing                      |
-        //|     (shiny)           \  Ray 3 -> hits Light C                      |
-        //|                        \                                            |
-        //|                                                                     |
-        //|  + Finds lights the surface "wants" (follows BRDF importance)       |
-        //|  + Great for specular/glossy surfaces                               |
-        //|  - Expensive (requires ray tracing per sample)                      |
-        //-----------------------------------------------------------------------
-        // Note: The returned reservoir is already in "finalized" form, meaning the weightSum is already divided by the number of samples (M).
-        RTXDI_DIReservoir brdfReservoir = RTXDI_SampleBrdf(rng, primary.surface, sampleParams, lightBufferParams, brdfSample);
-        
-        // Note: reservoir is the accumulator reservoir (unfinalized), brdfReservoir is the new reservoir (finalized).
-        // This follows the same pattern as the combination after local light sampling, where we combine the finalized BRD
-        // reservoir with the accumulator reservoir.
-        bool selectBrdf = RTXDI_CombineDIReservoirs(reservoir, brdfReservoir, RAB_GetNextRandom(rng), brdfReservoir.targetPdf);
-        if (selectBrdf)
+        if (RTXDI_IsValidDIReservoir(reservoir))
         {
-            lightSample = brdfSample;
-        }
-
-        
-        // Performs normalization of the reservoir after streaming. Equation (6) from the ReSTIR paper.
-        //void RTXDI_FinalizeResampling(
-        //    inout RTXDI_DIReservoir reservoir,
-        //    float normalizationNumerator,
-        //    float normalizationDenominator)
-        //{
-        //    float denominator = reservoir.targetPdf * normalizationDenominator;
-        //
-        //    reservoir.weightSum = (denominator == 0.0) ? 0.0 : (reservoir.weightSum * normalizationNumerator) / denominator;
-        //}
-        RTXDI_FinalizeResampling(reservoir, 1.0, 1.0);
-        reservoir.M = 1;
-         
-        // BRDF was generated with a trace so no need to trace visibility again
-        if (RTXDI_IsValidDIReservoir(reservoir) && !selectBrdf)
-        {
-            // See if the initial sample is visible from the surface
             if (!RAB_GetConservativeVisibility(primary.surface, lightSample))
             {
-                // If not visible, discard the sample (but keep the M)
                 RTXDI_StoreVisibilityInDIReservoir(reservoir, 0, true);
             }
         }
@@ -352,15 +272,14 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
             shadingOutput = ShadeSurfaceWithLightSample(lightSample, primary.surface)
                           * RTXDI_GetDIReservoirInvPdf(reservoir);
 
-            // Test if the selected light is visible from the surface
-            bool visibility = RAB_GetConservativeVisibility(primary.surface, lightSample);
-
-            // If not visible, discard the shading output and the light sample
-            if (!visibility)
+            // Align with MinimalGISample's final shading path: use final
+            // visibility for shading and store that evaluated visibility.
+            float3 visibility = GetFinalVisibility(SceneBVH, primary.surface, lightSample.position);
+            if (!any(visibility > 0))
             {
                 shadingOutput = 0;
-                RTXDI_StoreVisibilityInDIReservoir(reservoir, 0, true);
             }
+            RTXDI_StoreVisibilityInDIReservoir(reservoir, visibility, true);
         }
 
         // Compositing and tone mapping

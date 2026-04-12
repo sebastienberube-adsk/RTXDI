@@ -16,6 +16,8 @@
 
 #include <Rtxdi/DI/Reservoir.hlsli>
 
+#include "ShadingHelpers.hlsli"
+
 [numthreads(RTXDI_SCREEN_SPACE_GROUP_SIZE, RTXDI_SCREEN_SPACE_GROUP_SIZE, 1)]
 void main(uint2 pixelPosition : SV_DispatchThreadID)
 {
@@ -24,7 +26,8 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     RTXDI_DIReservoir reservoir = RTXDI_LoadDIReservoir(g_Const.restirDI.reservoirBufferParams,
         pixelPosition, g_Const.restirDI.bufferIndices.shadingInputBufferIndex);
 
-    float3 shadingOutput = 0;
+    float3 diffuse = 0;
+    float3 specular = 0;
 
     if (RAB_IsSurfaceValid(surface) && RTXDI_IsValidDIReservoir(reservoir))
     {
@@ -32,22 +35,31 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         RAB_LightSample lightSample = RAB_SamplePolymorphicLight(lightInfo,
             surface, RTXDI_GetDIReservoirSampleUV(reservoir));
 
-        shadingOutput = ShadeSurfaceWithLightSample(lightSample, surface)
-                      * RTXDI_GetDIReservoirInvPdf(reservoir);
-
-        bool visibility = RAB_GetConservativeVisibility(surface, lightSample);
-
-        if (!visibility)
+        if (lightSample.solidAnglePdf > 0)
         {
-            shadingOutput = 0;
-            RTXDI_StoreVisibilityInDIReservoir(reservoir, 0, true);
-            RTXDI_StoreDIReservoir(reservoir, g_Const.restirDI.reservoirBufferParams,
-                pixelPosition, g_Const.restirDI.bufferIndices.shadingInputBufferIndex);
+            float3 L = normalize(lightSample.position - surface.worldPos);
+
+            if (dot(L, surface.geoNormal) > 0)
+            {
+                float weight = RTXDI_GetDIReservoirInvPdf(reservoir) / lightSample.solidAnglePdf;
+                SplitBrdf brdf = EvaluateBrdf(surface, lightSample.position);
+
+                diffuse = brdf.demodulatedDiffuse * lightSample.radiance * weight;
+                specular = brdf.specular * lightSample.radiance * weight;
+                specular = DemodulateSpecular(surface.material.specularF0, specular);
+            }
+
+            bool visibility = RAB_GetConservativeVisibility(surface, lightSample);
+            if (!visibility)
+            {
+                diffuse = 0;
+                specular = 0;
+                RTXDI_StoreVisibilityInDIReservoir(reservoir, 0, true);
+                RTXDI_StoreDIReservoir(reservoir, g_Const.restirDI.reservoirBufferParams,
+                    pixelPosition, g_Const.restirDI.bufferIndices.shadingInputBufferIndex);
+            }
         }
     }
 
-    shadingOutput += u_Emissive[pixelPosition].rgb;
-    shadingOutput = basicToneMapping(shadingOutput, 0.005);
-
-    u_ShadingOutput[pixelPosition] = float4(shadingOutput, 1);
+    StoreShadingOutput(pixelPosition, diffuse, specular, true);
 }

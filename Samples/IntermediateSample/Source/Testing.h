@@ -34,6 +34,10 @@ struct CommandLineArguments
     bool verbose = false;
     bool benchmark = false;
     bool disableBackgroundOptimization = false;
+    bool disableEnvironment = false;
+    // Compat/testing mode can bypass roughness postprocess to match MinimalGISample.
+    bool skipPostprocessGBuffer = false;
+    int diagMode = 0;
     int renderWidth = 0;
     int renderHeight = 0;
 };

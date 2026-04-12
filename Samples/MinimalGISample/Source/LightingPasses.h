@@ -14,6 +14,7 @@
 #include <nvrhi/nvrhi.h>
 #include <memory>
 #include <Rtxdi/DI/ReSTIRDI.h>
+#include <Rtxdi/GI/ReSTIRGI.h>
 
 namespace donut::engine
 {
@@ -27,6 +28,7 @@ namespace donut::engine
 namespace rtxdi
 {
     class ReSTIRDIContext;
+    class ReSTIRGIContext;
 }
 
 class RenderTargets;
@@ -49,6 +51,11 @@ public:
         uint32_t numDisocclusionBoostSamples = 0;
         uint32_t numInitialBRDFSamples = 1;
         float brdfCutoff = 0.f;
+        bool enableBasicToneMapping = false;
+        float basicTonemapBias = 0.005f; // Same as MinimalSample Render.hlsl basicToneMapping value
+        bool enableBrdfIndirect = false;
+        rtxdi::ReSTIRGI_ResamplingMode giResamplingMode = rtxdi::ReSTIRGI_ResamplingMode::TemporalAndSpatial;
+        int diagMode = 0;
     };
 
     LightingPasses(
@@ -68,6 +75,7 @@ public:
     void Render(
         nvrhi::ICommandList* commandList,
         rtxdi::ReSTIRDIContext& context,
+        rtxdi::ReSTIRGIContext& giContext,
         const donut::engine::IView& view,
         const donut::engine::IView& previousView,
         const Settings& localSettings,
@@ -78,18 +86,33 @@ public:
 private:
     nvrhi::DeviceHandle m_device;
 
-    nvrhi::ShaderHandle m_GBufferPassShader;
-    nvrhi::ComputePipelineHandle m_GBufferPassPipeline;
-    nvrhi::ShaderHandle m_DIInitialSamplingShader;
-    nvrhi::ComputePipelineHandle m_DIInitialSamplingPipeline;
-    nvrhi::ShaderHandle m_DITemporalResamplingShader;
-    nvrhi::ComputePipelineHandle m_DITemporalResamplingPipeline;
-    nvrhi::ShaderHandle m_DISpatialResamplingShader;
-    nvrhi::ComputePipelineHandle m_DISpatialResamplingPipeline;
+    nvrhi::ShaderHandle m_gbufferShader;
+    nvrhi::ShaderHandle m_initialSamplingShader;
+    nvrhi::ShaderHandle m_temporalResamplingShader;
+    nvrhi::ShaderHandle m_spatialResamplingShader;
+    nvrhi::ShaderHandle m_shadeSamplesShader;
     nvrhi::ShaderHandle m_DIFusedResamplingShader;
+    nvrhi::ShaderHandle m_brdfRayTracingShader;
+    nvrhi::ShaderHandle m_shadeSecondarySurfacesShader;
+    nvrhi::ShaderHandle m_giTemporalResamplingShader;
+    nvrhi::ShaderHandle m_giSpatialResamplingShader;
+    nvrhi::ShaderHandle m_giFusedResamplingShader;
+    nvrhi::ShaderHandle m_giFinalShadingShader;
+    nvrhi::ShaderHandle m_compositingShader;
+
+    nvrhi::ComputePipelineHandle m_gbufferPipeline;
+    nvrhi::ComputePipelineHandle m_initialSamplingPipeline;
+    nvrhi::ComputePipelineHandle m_temporalResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_spatialResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_shadeSamplesPipeline;
     nvrhi::ComputePipelineHandle m_DIFusedResamplingPipeline;
-    nvrhi::ShaderHandle m_RenderShader;
-    nvrhi::ComputePipelineHandle m_RenderPipeline;
+    nvrhi::ComputePipelineHandle m_brdfRayTracingPipeline;
+    nvrhi::ComputePipelineHandle m_shadeSecondarySurfacesPipeline;
+    nvrhi::ComputePipelineHandle m_giTemporalResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_giSpatialResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_giFusedResamplingPipeline;
+    nvrhi::ComputePipelineHandle m_giFinalShadingPipeline;
+    nvrhi::ComputePipelineHandle m_compositingPipeline;
 
     nvrhi::BindingLayoutHandle m_bindingLayout;
     nvrhi::BindingLayoutHandle m_bindlessLayout;
@@ -97,6 +120,10 @@ private:
     nvrhi::BindingSetHandle m_prevBindingSet;
     nvrhi::BufferHandle m_constantBuffer;
     nvrhi::BufferHandle m_lightReservoirBuffer;
+    nvrhi::BufferHandle m_secondaryGBuffer;
+    nvrhi::BufferHandle m_giReservoirBuffer;
+    nvrhi::TextureHandle m_diffuseLightingTexture;
+    nvrhi::TextureHandle m_specularLightingTexture;
 
     std::shared_ptr<donut::engine::ShaderFactory> m_shaderFactory;
     std::shared_ptr<donut::engine::CommonRenderPasses> m_commonPasses;

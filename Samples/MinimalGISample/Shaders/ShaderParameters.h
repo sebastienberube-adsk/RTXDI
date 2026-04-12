@@ -14,6 +14,7 @@
 #include <donut/shaders/view_cb.h>
 #include <donut/shaders/sky_cb.h>
 #include <Rtxdi/DI/ReSTIRDIParameters.h>
+#include <Rtxdi/GI/ReSTIRGIParameters.h>
 
 #define RTXDI_GRID_BUILD_GROUP_SIZE 256
 #define RTXDI_SCREEN_SPACE_GROUP_SIZE 8
@@ -38,6 +39,31 @@ struct PrepareLightsTask
     uint lightBufferOffset;
 };
 
+struct BRDFPathTracing_Parameters
+{
+    uint32_t enableReSTIRGI;
+    uint32_t pad1;
+    uint32_t pad2;
+    uint32_t pad3;
+};
+
+struct SecondaryGBufferData
+{
+    float3 worldPos;
+    uint normal;
+
+    uint2 throughputAndFlags;   // .x = throughput.rg as float16, .y = throughput.b as float16, flags << 16
+    uint diffuseAlbedo;         // R11G11B10_UFLOAT
+    uint specularAndRoughness;  // R8G8B8A8_Gamma_UFLOAT
+
+    float3 emission;
+    float pdf;
+};
+
+static const uint32_t kSecondaryGBuffer_IsSpecularRay = 1;
+static const uint32_t kSecondaryGBuffer_IsDeltaSurface = 2;
+static const uint32_t kSecondaryGBuffer_IsEnvironmentMap = 4;
+
 struct ResamplingConstants
 {
     PlanarViewConstants view;
@@ -46,11 +72,27 @@ struct ResamplingConstants
     RTXDI_LightBufferParameters lightBufferParams;
 
     ReSTIRDI_Parameters restirDI;
+    ReSTIRGI_Parameters restirGI;
+    BRDFPathTracing_Parameters brdfPT;
 
     uint frameIndex;
     uint enableResampling;
     uint enableMaterialSimilarityTest;
-    uint pad;
+    uint enableBasicToneMapping;
+
+    uint enableBrdfIndirect;
+    float basicTonemapBias;
+    int diagMode;
+    uint pad_2;
+};
+
+struct AccumulationConstants
+{
+    float2 outputSize;
+    float2 inputSize;
+    float2 inputTextureSizeInv;
+    float2 pixelOffset;
+    float blendFactor;
 };
 
 // See TriangleLight.hlsli for encoding format

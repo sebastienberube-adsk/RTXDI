@@ -66,9 +66,12 @@ StochasticResult CompareStochastic(
     result.imageHeight = static_cast<uint32_t>(height);
     result.tiles.resize(static_cast<size_t>(result.tilesX) * result.tilesY);
     result.passed = true;
+    result.imagePassed = true;
     result.failingTileCount = 0;
 
     const bool stdDevEnabled = (thresholds.absStdDevDeltaThreshold > 0.0f);
+    double imageSumA[3] = { 0, 0, 0 };
+    double imageSumB[3] = { 0, 0, 0 };
 
     for (uint32_t ty = 0; ty < result.tilesY; ++ty)
     {
@@ -103,6 +106,8 @@ StochasticResult CompareStochastic(
                         sumB[c] += vB;
                         sumSqA[c] += vA * vA;
                         sumSqB[c] += vB * vB;
+                        imageSumA[c] += vA;
+                        imageSumB[c] += vB;
                     }
                 }
             }
@@ -158,6 +163,30 @@ StochasticResult CompareStochastic(
         }
     }
 
+    const double totalPixels = static_cast<double>(width * height);
+    for (int c = 0; c < 3; ++c)
+    {
+        float avgA = static_cast<float>(imageSumA[c] / totalPixels);
+        float avgB = static_cast<float>(imageSumB[c] / totalPixels);
+        float absAvg = std::abs(avgA - avgB);
+        float maxAvg = std::max(avgA, avgB);
+        float rel = (maxAvg > 1e-7f) ? (absAvg / maxAvg) : 0.0f;
+
+        result.imageAvgA[c] = avgA;
+        result.imageAvgB[c] = avgB;
+        result.imageAbsAvgDelta[c] = absAvg;
+        result.imageRelDelta[c] = rel;
+
+        bool chPass = (absAvg <= thresholds.imageAbsAvgDeltaThreshold) ||
+                      (rel <= thresholds.imageRelDifferenceThreshold);
+        result.imageChannelPassed[c] = chPass;
+        if (!chPass)
+            result.imagePassed = false;
+    }
+
+    if (!result.imagePassed)
+        result.passed = false;
+
     return result;
 }
 
@@ -195,6 +224,8 @@ std::string FormatStochasticSummary(
     if (stdDevEnabled)
         ss << ", absStdDevDelta <= " << thresholds.absStdDevDeltaThreshold;
     ss << "\n";
+    ss << "              imageAbsAvgDelta <= " << thresholds.imageAbsAvgDeltaThreshold
+       << " OR imageRelDiff <= " << (thresholds.imageRelDifferenceThreshold * 100.0f) << "%\n";
 
     ss << std::fixed << std::setprecision(3);
     ss << "     Max absolute avg delta   "
@@ -214,9 +245,24 @@ std::string FormatStochasticSummary(
        << "x threshold=" << std::setprecision(3) << thresholds.absStdDevDeltaThreshold
        << ", tile(" << worstSD.tileX << "," << worstSD.tileY << ")]\n";
 
+    ss << std::setprecision(6) << std::defaultfloat;
+    for (int c = 0; c < 3; ++c)
+    {
+        const char channelName = (c == 0) ? 'R' : (c == 1) ? 'G' : 'B';
+        ss << "     Image avg " << channelName
+           << ": avgA=" << result.imageAvgA[c]
+           << " avgB=" << result.imageAvgB[c]
+           << " abs=" << result.imageAbsAvgDelta[c]
+           << " rel=" << (result.imageRelDelta[c] * 100.0f) << "%"
+           << " [" << (result.imageChannelPassed[c] ? "PASS" : "FAIL") << "]\n";
+    }
+
     ss << "  Result: " << (result.passed ? "PASSED" : "FAILED")
        << " (" << result.failingTileCount << " / "
        << (result.tilesX * result.tilesY) << " tiles failed)\n";
+
+    if (!result.imagePassed)
+        ss << "  Image-average result: FAILED (at least one RGB channel exceeded both image thresholds)\n";
 
     if (!result.passed)
     {

@@ -24,6 +24,8 @@ struct StochasticThresholds
     float absAvgDeltaThreshold = 0.05f;
     float relDifferenceThreshold = 0.08f;
     float absStdDevDeltaThreshold = 0.05f;
+    float imageAbsAvgDeltaThreshold = 0.01f;
+    float imageRelDifferenceThreshold = 0.02f;
 };
 
 struct TileChannelStats
@@ -49,9 +51,15 @@ struct TileResult
 struct StochasticResult
 {
     bool passed = true;
+    bool imagePassed = true;
     float maxAbsAvgDelta[3] = { 0.0f, 0.0f, 0.0f };
     float maxRelDelta[3] = { 0.0f, 0.0f, 0.0f };
     float maxAbsStdDevDelta[3] = { 0.0f, 0.0f, 0.0f };
+    float imageAvgA[3] = { 0.0f, 0.0f, 0.0f };
+    float imageAvgB[3] = { 0.0f, 0.0f, 0.0f };
+    float imageAbsAvgDelta[3] = { 0.0f, 0.0f, 0.0f };
+    float imageRelDelta[3] = { 0.0f, 0.0f, 0.0f };
+    bool imageChannelPassed[3] = { true, true, true };
     uint32_t tilesX = 0;
     uint32_t tilesY = 0;
     uint32_t imageWidth = 0;

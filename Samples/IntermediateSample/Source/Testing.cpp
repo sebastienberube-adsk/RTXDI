@@ -166,6 +166,8 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
     bool help = false;
     bool useVk = false;
     ibool checkerboard = false;
+    bool minimalSampleCompat = false;
+    bool minimalGISampleCompat = false;
     options.add_options()
         ("aa-mode", "Anti-aliasing mode: OFF, ACC, TAA", value(ui.aaMode))
         ("alpha-tested", "Alpha-tested materials toggle", value(ui.gbufferSettings.enableAlphaTestedGeometry))
@@ -192,11 +194,16 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("save-file", "Save frame to file and exit", value(args.saveFrameFileName))
         ("save-frame", "Index of the frame to save, default is 0", value(args.saveFrameIndex))
         ("scene", "Scene file path (VFS path, e.g. /Assets/Media/arcade.scene.json or /Assets/Media/Arcade/Arcade.gltf)", value(args.scenePath))
+        ("environment", "Environment map rendering toggle", value(ui.enableEnvironmentRendering))
+        ("minimal-gi-sample-compatibility-mode-di", "Match MinimalGISample parameter defaults", value(minimalSampleCompat))
+        ("minimal-gi-sample-compatibility-mode-gi", "Match MinimalGISample parameters for testing GI", value(minimalGISampleCompat))
         ("tone-mapping", "Tone mapping toggle", value(ui.enableToneMapping))
+        ("basic-tonemap", "Basic tone mapping in compositing (same as MinimalSample)", value(ui.enableBasicToneMapping))
         ("transparent", "Transparent materials toggle", value(ui.gbufferSettings.enableTransparentGeometry))
         ("verbose", "Enable debug log messages", value(args.verbose))
         ("vk", "Run the application using Vulkan (otherwise D3D12 if supported)", value(useVk))
         ("width", "Window width", value(deviceParams.backBufferWidth))
+        ("diag-mode", "Diagnostic output mode: 0=off, 1=roughness, 2=normals, 3=diffuseAlbedo, 4=specularF0, 5=depth", value(args.diagMode))
     ;
 
     try
@@ -242,6 +249,72 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
 
     if (checkerboard)
         ui.restirDIStaticParams.CheckerboardSamplingMode = rtxdi::CheckerboardMode::Black;
+
+    bool minimalSampleCompatibilityMode = minimalSampleCompat || minimalGISampleCompat;
+    if (minimalSampleCompatibilityMode)
+    {
+        // Match MinimalGISample's "intermediate-sample-compatibility-mode" settings
+        // 
+        // Match MinimalGISample's resampling mode and general app settings
+        ui.restirDI.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
+        ui.enableBasicToneMapping = true;
+        //TODO: Set basic tonemap bias to 0.035;
+        ui.enableToneMapping = false;
+        ui.enableBloom = false;
+        ui.rasterizeGBuffer = false;
+        ui.gbufferSettings.enableAlphaTestedGeometry = false;
+        ui.gbufferSettings.enableTransparentGeometry = false;
+        ui.aaMode = AntiAliasingMode::None;
+        args.disableEnvironment = true;
+        // Match MinimalGISample path (no PostprocessGBuffer roughness shaping).
+        args.skipPostprocessGBuffer = true;
+
+        // Initial sampling — match MinimalGISample LightingPasses::Settings + SDK defaults
+        ui.restirDI.initialSamplingParams.localLightSamplingMode = ReSTIRDI_LocalLightSamplingMode::Uniform;
+        ui.restirDI.initialSamplingParams.numPrimaryLocalLightSamples = 8;
+        ui.restirDI.initialSamplingParams.numPrimaryBrdfSamples = 1;
+        ui.restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples = 0;
+        ui.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples = 0;
+        ui.restirDI.initialSamplingParams.enableInitialVisibility = true;
+        ui.restirDI.initialSamplingParams.brdfCutoff = 0.0f;
+
+        // Temporal resampling — match MinimalGISample overrides + SDK defaults
+        ui.restirDI.temporalResamplingParams.temporalBiasCorrection = ReSTIRDI_TemporalBiasCorrectionMode::Basic;
+        ui.restirDI.temporalResamplingParams.discardInvisibleSamples = true;
+        ui.restirDI.temporalResamplingParams.enablePermutationSampling = true;
+        ui.restirDI.temporalResamplingParams.permutationSamplingThreshold = 0.9f;
+        ui.restirDI.temporalResamplingParams.maxHistoryLength = 20;
+        ui.restirDI.temporalResamplingParams.temporalDepthThreshold = 0.1f;
+        ui.restirDI.temporalResamplingParams.temporalNormalThreshold = 0.5f;
+        ui.restirDI.temporalResamplingParams.enableBoilingFilter = true;
+        ui.restirDI.temporalResamplingParams.boilingFilterStrength = 0.2f;
+
+        // Spatial resampling — match MinimalGISample overrides + SDK defaults
+        ui.restirDI.spatialResamplingParams.numSpatialSamples = 1;
+        ui.restirDI.spatialResamplingParams.numDisocclusionBoostSamples = 0;
+        ui.restirDI.spatialResamplingParams.spatialSamplingRadius = 32.0f;
+        ui.restirDI.spatialResamplingParams.spatialBiasCorrection = ReSTIRDI_SpatialBiasCorrectionMode::Basic;
+        ui.restirDI.spatialResamplingParams.discountNaiveSamples = 0;
+
+        // MinimalGISample compatibility: disable material similarity filtering.
+        ui.lightingSettings.enableMaterialSimilarityTest = false;
+
+        // Bypass IsComplexSurface gating so permutation sampling stays enabled,
+        // matching MinimalGISample behavior for this compat configuration.
+        ui.restirDI.temporalResamplingParams.permutationSamplingThreshold = 0.0f;
+
+        // Shading — match MinimalGISample (which uses fresh visibility checks, not reuse)
+        ui.restirDI.shadingParams.enableFinalVisibility = true;
+        ui.restirDI.shadingParams.reuseFinalVisibility = false;
+        ui.restirDI.shadingParams.finalVisibilityMaxAge = 4;
+        ui.restirDI.shadingParams.finalVisibilityMaxDistance = 16.0f;
+    }
+    // Additional settings when testing GI
+    if (minimalGISampleCompat)
+    {
+        // TODO: Enable ReSTIRGI (fused spatiotemporal)
+        //
+    }
 }
 
 void ApplicationLogCallback(log::Severity severity, const char* message)

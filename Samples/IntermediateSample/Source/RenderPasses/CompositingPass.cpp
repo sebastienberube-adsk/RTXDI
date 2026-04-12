@@ -124,13 +124,15 @@ void CompositingPass::Render(
     constants.enableTextures = ui.enableTextures;
     constants.denoiserMode = denoiserMode;
     constants.checkerboard = checkerboard;
-    constants.enableEnvironmentMap = (environmentLight.textureIndex >= 0);
+    constants.enableEnvironmentMap = (environmentLight.textureIndex >= 0) && ui.enableEnvironmentRendering;
     constants.environmentMapTextureIndex = (environmentLight.textureIndex >= 0) ? environmentLight.textureIndex : 0;
     constants.environmentScale = environmentLight.radianceScale.x;
     constants.environmentRotation = environmentLight.rotation;
     constants.noiseMix = ui.noiseMix;
     constants.noiseClampLow = ui.noiseClampLow;
     constants.noiseClampHigh = ui.noiseClampHigh;
+    constants.enableBasicToneMapping = ui.enableBasicToneMapping;
+    constants.diagMode = ui.diagMode;
     commandList->writeBuffer(m_constantBuffer, &constants, sizeof(constants));
 
     nvrhi::ComputeState state;

@@ -22,14 +22,17 @@ public:
     nvrhi::TextureHandle GBufferSpecularRough;
     nvrhi::TextureHandle GBufferNormals;
     nvrhi::TextureHandle GBufferGeoNormals;
+    nvrhi::TextureHandle GBufferEmissive;
     nvrhi::TextureHandle PrevGBufferDiffuseAlbedo;
     nvrhi::TextureHandle PrevGBufferSpecularRough;
     nvrhi::TextureHandle PrevGBufferNormals;
     nvrhi::TextureHandle PrevGBufferGeoNormals;
-    
     nvrhi::TextureHandle MotionVectors;
-    nvrhi::TextureHandle Emissive;
+
+    nvrhi::TextureHandle DiffuseLighting;
+    nvrhi::TextureHandle SpecularLighting;
     nvrhi::TextureHandle HdrColor;
+    nvrhi::TextureHandle AccumulatedColor;
 
     dm::int2 Size;
 

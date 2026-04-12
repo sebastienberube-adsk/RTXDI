@@ -10,6 +10,7 @@
 
 // Include this first just to test the cleanliness
 #include <Rtxdi/DI/ReSTIRDI.h>
+#include <Rtxdi/GI/ReSTIRGI.h>
 
 #include <donut/app/ApplicationBase.h>
 #include <donut/app/Camera.h>
@@ -31,6 +32,7 @@
 #include "RenderTargets.h"
 #include "PrepareLightsPass.h"
 #include "LightingPasses.h"
+#include "AccumulationPass.h"
 #include "RtxdiResources.h"
 #include "SampleScene.h"
 #include "UserInterface.h"
@@ -130,6 +132,7 @@ public:
 
         m_prepareLightsPass = std::make_unique<PrepareLightsPass>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_bindlessLayout);
         m_lightingPasses = std::make_unique<LightingPasses>(GetDevice(), m_shaderFactory, m_CommonPasses, m_scene, m_bindlessLayout);
+        m_accumulationPass = std::make_unique<AccumulationPass>(GetDevice(), m_shaderFactory);
 
 
         LoadShaders();
@@ -201,6 +204,7 @@ public:
     {
         m_prepareLightsPass->CreatePipeline();
         m_lightingPasses->CreatePipeline();
+        m_accumulationPass->CreatePipeline();
     }
 
     bool LoadScene(std::shared_ptr<vfs::IFileSystem> fs, const std::filesystem::path& sceneFileName) override 
@@ -263,6 +267,7 @@ public:
         m_bindingCache.Clear();
         m_renderTargets = nullptr;
         m_restirDIContext = nullptr;
+        m_restirGIContext = nullptr;
         m_rtxdiResources = nullptr;
     }
     
@@ -305,6 +310,12 @@ public:
             contextParams.RenderHeight = fbinfo.height;
 
             m_restirDIContext = std::make_unique<rtxdi::ReSTIRDIContext>(contextParams);
+
+            rtxdi::ReSTIRGIStaticParameters giParams;
+            giParams.RenderWidth = fbinfo.width;
+            giParams.RenderHeight = fbinfo.height;
+
+            m_restirGIContext = std::make_unique<rtxdi::ReSTIRGIContext>(giParams);
         }
 
         if (!m_renderTargets)
@@ -334,6 +345,8 @@ public:
                 m_scene->GetTopLevelAS(),
                 *m_renderTargets,
                 *m_rtxdiResources);
+
+            m_accumulationPass->CreateBindingSet(*m_renderTargets);
         }
     }
 
@@ -359,16 +372,35 @@ public:
         m_rtxdiResources->InitializeNeighborOffsets(m_commandList, m_restirDIContext->GetStaticParameters().NeighborOffsetCount);
         
         m_restirDIContext->SetFrameIndex(GetFrameIndex());
+        m_restirGIContext->SetFrameIndex(GetFrameIndex());
 
         RTXDI_LightBufferParameters lightBufferParams = m_prepareLightsPass->Process(m_commandList);
 
         m_lightingPasses->Render(m_commandList,
             *m_restirDIContext,
+            *m_restirGIContext,
             m_view, m_viewPrevious,
             m_ui.lightingSettings,
             lightBufferParams);
 
-        m_CommonPasses->BlitTexture(m_commandList, framebuffer, m_renderTargets->HdrColor, &m_bindingCache);
+        nvrhi::ITexture* displayTexture = m_renderTargets->HdrColor;
+
+        if (m_ui.enableAccumulation)
+        {
+            bool cameraIsStatic = m_view.GetViewMatrix() == m_viewPrevious.GetViewMatrix();
+            if (cameraIsStatic && !m_ui.resetAccumulation)
+                m_ui.numAccumulatedFrames += 1;
+            else
+                m_ui.numAccumulatedFrames = 1;
+
+            float accumulationWeight = 1.f / (float)m_ui.numAccumulatedFrames;
+
+            m_accumulationPass->Render(m_commandList, m_view, m_view, accumulationWeight);
+            displayTexture = m_renderTargets->AccumulatedColor;
+            m_ui.resetAccumulation = false;
+        }
+
+        m_CommonPasses->BlitTexture(m_commandList, framebuffer, displayTexture, &m_bindingCache);
         
         m_commandList->close();
         GetDevice()->executeCommandList(m_commandList);
@@ -475,8 +507,10 @@ private:
     engine::BindingCache m_bindingCache;
 
     std::unique_ptr<rtxdi::ReSTIRDIContext> m_restirDIContext;
+    std::unique_ptr<rtxdi::ReSTIRGIContext> m_restirGIContext;
     std::unique_ptr<PrepareLightsPass> m_prepareLightsPass;
     std::unique_ptr<LightingPasses> m_lightingPasses;
+    std::unique_ptr<AccumulationPass> m_accumulationPass;
     std::unique_ptr<RtxdiResources> m_rtxdiResources;
 
     UIData& m_ui;
@@ -513,6 +547,8 @@ int main(int argc, char** argv)
 #else
     ProcessCommandLine(argc, argv, deviceParams, ui, args);
 #endif
+
+    ui.lightingSettings.diagMode = args.diagMode;
 
     app::DeviceManager* deviceManager = app::DeviceManager::Create(args.graphicsApi);
     

@@ -288,7 +288,7 @@ public:
         sceneGraph->AttachLeafNode(sceneGraph->GetRootNode(), m_environmentLight);
         m_environmentLight->SetName("Environment");
         m_ui.environmentMapDirty = 2;
-        m_ui.environmentMapIndex = 0;
+        m_ui.environmentMapIndex = m_args.disableEnvironment ? -1 : 0;
         
         m_rasterizedGBufferPass->CreateBindingSet();
 
@@ -1026,7 +1026,9 @@ public:
             else
                 m_gBufferPass->Render(m_commandList, m_view, m_viewPrevious, m_ui.gbufferSettings);
 
-            m_postprocessGBufferPass->Render(m_commandList, m_view);
+            // Allow testing mode to skip this pass to keep GBuffer closer to MinimalGISample.
+            if (!m_args.skipPostprocessGBuffer)
+                m_postprocessGBufferPass->Render(m_commandList, m_view);
         }
 
         // The light indexing members of frameParameters are written by PrepareLightsPass below
@@ -1408,6 +1410,8 @@ int main(int argc, char** argv)
 
     if (args.verbose)
         log::SetMinSeverity(log::Severity::Debug);
+
+    ui.diagMode = args.diagMode;
     
     app::DeviceManager* deviceManager = app::DeviceManager::Create(args.graphicsApi);
 

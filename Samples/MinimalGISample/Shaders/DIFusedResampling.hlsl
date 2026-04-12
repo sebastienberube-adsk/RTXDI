@@ -17,6 +17,8 @@
 #include <Rtxdi/DI/InitialSampling.hlsli>
 #include <Rtxdi/DI/SpatioTemporalResampling.hlsli>
 
+#include "ShadingHelpers.hlsli"
+
 [numthreads(RTXDI_SCREEN_SPACE_GROUP_SIZE, RTXDI_SCREEN_SPACE_GROUP_SIZE, 1)]
 void main(uint2 pixelPosition : SV_DispatchThreadID)
 {
@@ -26,6 +28,7 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     RAB_Surface surface = RAB_GetGBufferSurface(pixelPosition, false);
 
     RAB_RandomSamplerState rng = RAB_InitRandomSampler(pixelPosition, 1);
+    RAB_RandomSamplerState tileRng = RAB_InitRandomSampler(pixelPosition / RTXDI_TILE_SIZE_IN_PIXELS, 1);
 
     RTXDI_SampleParameters sampleParams = RTXDI_InitSampleParameters(
         g_Const.restirDI.initialSamplingParams.numPrimaryLocalLightSamples,
@@ -39,25 +42,16 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
 
     if (RAB_IsSurfaceValid(surface))
     {
-        RTXDI_DIReservoir localReservoir = RTXDI_SampleLocalLights(rng, rng, surface,
-            sampleParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM,
-            lightBufferParams.localLightBufferRegion, lightSample);
+        reservoir = RTXDI_SampleLightsForSurface(rng, tileRng, surface,
+            sampleParams, lightBufferParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM,
+            lightSample);
 
-        RTXDI_CombineDIReservoirs(reservoir, localReservoir, 0.5, localReservoir.targetPdf);
+        // Align RNG state with IntermediateSample which compiles with
+        // RTXDI_ENABLE_PRESAMPLING=1 (SDK default), causing an extra
+        // RAB_GetNextRandom inside the environment reservoir combination step.
+        RAB_GetNextRandom(rng);
 
-        RAB_LightSample brdfSample = RAB_EmptyLightSample();
-        RTXDI_DIReservoir brdfReservoir = RTXDI_SampleBrdf(rng, surface, sampleParams, lightBufferParams, brdfSample);
-
-        bool selectBrdf = RTXDI_CombineDIReservoirs(reservoir, brdfReservoir, RAB_GetNextRandom(rng), brdfReservoir.targetPdf);
-        if (selectBrdf)
-        {
-            lightSample = brdfSample;
-        }
-
-        RTXDI_FinalizeResampling(reservoir, 1.0, 1.0);
-        reservoir.M = 1;
-
-        if (RTXDI_IsValidDIReservoir(reservoir) && !selectBrdf)
+        if (g_Const.restirDI.initialSamplingParams.enableInitialVisibility && RTXDI_IsValidDIReservoir(reservoir))
         {
             if (!RAB_GetConservativeVisibility(surface, lightSample))
             {
@@ -88,32 +82,23 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         reservoir = RTXDI_DISpatioTemporalResampling(pixelPosition, surface, reservoir,
             rng, params, g_Const.restirDI.reservoirBufferParams, stparams,
             temporalSamplePixelPos, lightSample);
-
-        float3 shadingOutput = 0;
-
-        if (RTXDI_IsValidDIReservoir(reservoir))
-        {
-            shadingOutput = ShadeSurfaceWithLightSample(lightSample, surface)
-                          * RTXDI_GetDIReservoirInvPdf(reservoir);
-
-            bool visibility = RAB_GetConservativeVisibility(surface, lightSample);
-            if (!visibility)
-            {
-                shadingOutput = 0;
-                RTXDI_StoreVisibilityInDIReservoir(reservoir, 0, true);
-            }
-        }
-
-        shadingOutput += u_Emissive[pixelPosition].rgb;
-        shadingOutput = basicToneMapping(shadingOutput, 0.005);
-
-        u_ShadingOutput[pixelPosition] = float4(shadingOutput, 1);
     }
-    else
+
+    float3 diffuse = 0;
+    float3 specular = 0;
+
+    if (RTXDI_IsValidDIReservoir(reservoir))
     {
-        u_ShadingOutput[pixelPosition] = float4(0, 0, 0, 1);
+        // Use the shared helper path (same structure as Intermediate/Full) so
+        // BRDF weighting and visibility handling stay centralized and aligned.
+        ShadeSurfaceWithLightSample(reservoir, surface, lightSample,
+            /* enableVisibilityReuse = */ false, diffuse, specular);
+
+        specular = DemodulateSpecular(surface.material.specularF0, specular);
     }
 
     RTXDI_StoreDIReservoir(reservoir, g_Const.restirDI.reservoirBufferParams,
         pixelPosition, g_Const.restirDI.bufferIndices.shadingInputBufferIndex);
+
+    StoreShadingOutput(pixelPosition, diffuse, specular, true);
 }

@@ -9,6 +9,7 @@
  **************************************************************************/
 
 #include <ImageComparison.h>
+#include "SampleTests.h"
 #include <gtest/gtest.h>
 #include <stb_image_write.h>
 
@@ -28,25 +29,6 @@
 #include <vector>
 
 namespace fs = std::filesystem;
-
-// ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
-
-// Thresholds calibrated from MinimalSample_SelfComparison (frame 50 vs 75,
-// 32px tiles): the natural stochastic variance of equivalent images rendered
-// with different random seeds.  Measured maximums were:
-//   absAvgDelta  = 0.0473    relDifference = 24.6%    absStdDevDelta = 0.0655
-// Values below include ~15% headroom for run-to-run variation.
-static StochasticThresholds GetThresholds()
-{
-    StochasticThresholds t;
-    t.tileSize                = 32;
-    t.absAvgDeltaThreshold    = 0.075f;
-    t.relDifferenceThreshold  = 0.35f;
-    t.absStdDevDeltaThreshold = 0.150f;
-    return t;
-}
 
 static const char* kScene = "/Assets/Media/livingroom_Original.scene.json";
 
@@ -189,7 +171,8 @@ static void SaveAnnotatedImage(const uint8_t* pixels, size_t width, size_t heigh
 }
 
 static ::testing::AssertionResult CompareImages(
-    const fs::path& imageA, const fs::path& imageB, const std::string& label)
+    const fs::path& imageA, const fs::path& imageB, const std::string& label,
+    const StochasticThresholds& thresholds = GetThresholds())
 {
     size_t wA = 0, hA = 0, wB = 0, hB = 0;
     auto pixA = LoadImageRGBA8(imageA.string(), wA, hA);
@@ -203,7 +186,6 @@ static ::testing::AssertionResult CompareImages(
         return ::testing::AssertionFailure()
             << "Size mismatch: " << wA << "x" << hA << " vs " << wB << "x" << hB;
 
-    auto thresholds = GetThresholds();
     auto result = CompareStochastic(pixA.data(), pixB.data(), wA, hA, thresholds);
     std::string summary = FormatStochasticSummary(result, thresholds);
     std::cout << "  [" << label << "] " << summary;
@@ -233,54 +215,84 @@ static ::testing::AssertionResult CompareImages(
 // Runs MinimalSample at two different frame counts to establish the natural
 // stochastic variance of equivalent images rendered with different random
 // seeds.  The thresholds in GetThresholds() are calibrated from this test.
-TEST(SampleImageTests, MinimalSample_SelfComparison)
+TEST(SampleImageTests, Threshold_MinimalSample_SelfComparison)
 {
-    fs::path outA = GetOutputDir() / "MinimalSample_frame50.bmp";
-    fs::path outB = GetOutputDir() / "MinimalSample_frame75.bmp";
+    fs::path outA = GetOutputDir() / "Threshold_MinimalSample_f50.bmp";
+    fs::path outB = GetOutputDir() / "Threshold_MinimalSample_f75.bmp";
 
     ASSERT_EQ(RunSample("MinimalSample", "", outA, 50), 0) << "MinimalSample (frame 50) failed to run";
     ASSERT_EQ(RunSample("MinimalSample", "", outB, 75), 0) << "MinimalSample (frame 75) failed to run";
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalSample self frame50 vs frame75"));
 }
 
-TEST(SampleImageTests, MinimalDI_vs_MinimalGI_DI)
+TEST(SampleImageTests, Threshold_IntermediateSample_SelfComparison)
 {
-    fs::path outA = GetOutputDir() / "MinimalSample_DI.bmp";
-    fs::path outB = GetOutputDir() / "MinimalGISample_DI.bmp";
+    fs::path outA = GetOutputDir() / "Threshold_IntermediateSample_compat_f64.bmp";
+    fs::path outB = GetOutputDir() / "Threshold_IntermediateSample_compat_f128.bmp";
+
+    ASSERT_EQ(RunSample("IntermediateSample", "--minimal-gi-sample-compatibility-mode-di", outA, 64), 0)
+        << "IntermediateSample (frame 64) failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--minimal-gi-sample-compatibility-mode-di", outB, 128), 0)
+        << "IntermediateSample (frame 128) failed to run";
+    EXPECT_TRUE(CompareImages(outA, outB, "IntermediateSample self frame64 vs frame128"));
+}
+
+TEST(SampleImageTests, Minimal_vs_MinimalGI_DI)
+{
+    fs::path outA = GetOutputDir() / "Minimal_vs_MinimalGI_DI_A.bmp";
+    fs::path outB = GetOutputDir() / "Minimal_vs_MinimalGI_DI_B.bmp";
 
     ASSERT_EQ(RunSample("MinimalSample", "", outA, 64), 0) << "MinimalSample failed to run";
     ASSERT_EQ(RunSample("MinimalGISample", "--minimal-sample-compatibility-mode", outB, 64), 0) << "MinimalGISample failed to run";
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalDI vs MinimalGI_DI"));
 }
 
-TEST(SampleImageTests, MinimalDI_vs_MinimalGI_DI_VK)
+TEST(SampleImageTests, Minimal_vs_MinimalGI_DI_VK)
 {
-    fs::path outA = GetOutputDir() / "MinimalSample_DI_VK.bmp";
-    fs::path outB = GetOutputDir() / "MinimalGISample_DI_VK.bmp";
+    fs::path outA = GetOutputDir() / "Minimal_vs_MinimalGI_DI_VK_A.bmp";
+    fs::path outB = GetOutputDir() / "Minimal_vs_MinimalGI_DI_VK_B.bmp";
 
     ASSERT_EQ(RunSample("MinimalSample", "--vk", outA, 64), 0) << "MinimalSample failed to run";
     ASSERT_EQ(RunSample("MinimalGISample", "--minimal-sample-compatibility-mode --vk", outB, 64), 0) << "MinimalGISample failed to run";
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalDI vs MinimalGI_DI"));
 }
 
-TEST(SampleImageTests, MinimalGI_vs_Intermediate_NoDI)
+/*TEST(SampleImageTests, MinimalGI_vs_Intermediate_DI_Frame1)
 {
-    fs::path outA = GetOutputDir() / "MinimalGISample_DI.bmp";
-    fs::path outB = GetOutputDir() / "IntermediateSample_NoDI.bmp";
+    // Diagnostic parity test: compare frame 1 to isolate first-frame differences
+    // (initial sampling/shading/G-buffer/light prep) from temporal history effects.
+    // Keep this test to quickly detect structural mismatches before resampling
+    // history and accumulation can mask or redistribute errors.
+    fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_DI_F1_A.bmp";
+    fs::path outB = GetOutputDir() / "MinimalGI_vs_Intermediate_DI_F1_B.bmp";
 
-    ASSERT_EQ(RunSample("MinimalGISample", "--disable-gi", outA, 64), 0) << "MinimalGISample failed to run";
-    ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode NONE --aa-mode ACC", outB, 128), 0)
+    ASSERT_EQ(RunSample("MinimalGISample", "--disable-gi --minimal-sample-compatibility-mode", outA, 1), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--minimal-sample-compatibility-mode", outB, 1), 0)
         << "IntermediateSample failed to run";
-    EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (no GI)"));
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (no GI, frame 1)"));
+}*/
+
+TEST(SampleImageTests, MinimalGI_vs_Intermediate_DI)
+{
+    fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_DI_A.bmp";
+    fs::path outB = GetOutputDir() / "MinimalGI_vs_Intermediate_DI_B.bmp";
+    
+    ASSERT_EQ(RunSample("MinimalGISample", "--indirect-mode NONE --intermediate-sample-compatibility-mode", outA, 64), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--minimal-gi-sample-compatibility-mode-di", outB, 64), 0)
+        << "IntermediateSample failed to run";
+    StochasticThresholds t = GetThresholds();
+    t.imageAbsAvgDeltaThreshold = 0.075f;
+    t.imageRelDifferenceThreshold = 0.100f;
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (no GI)", t));
 }
 
 TEST(SampleImageTests, MinimalGI_vs_Intermediate_GI)
 {
-    fs::path outA = GetOutputDir() / "MinimalGISample_GI.bmp";
-    fs::path outB = GetOutputDir() / "IntermediateSample_GI.bmp";
+    fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_A.bmp";
+    fs::path outB = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_B.bmp";
 
-    ASSERT_EQ(RunSample("MinimalGISample", "", outA, 64), 0) << "MinimalGISample failed to run";
-    ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode RESTIRGI --aa-mode ACC", outB, 128), 0)
+    ASSERT_EQ(RunSample("MinimalGISample", "--indirect-mode RESTIRGI --intermediate-sample-compatibility-mode", outA, 64), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode RESTIRGI --minimal-gi-sample-compatibility-mode-gi", outB, 64), 0)
         << "IntermediateSample failed to run";
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (GI)"));
 }
@@ -307,4 +319,75 @@ TEST(SampleImageTests, Full_DX12_vs_VK)
     ASSERT_EQ(RunSample("FullSample", "--vk --aa-mode DLSS --denoiser RELAX", outVK, 128), 0)
         << "FullSample (VK) failed to run";
     EXPECT_TRUE(CompareImages(outDX12, outVK, "FullSample DX12 vs VK"));
+}
+
+// ---------------------------------------------------------------------------
+// G-Buffer diagnostic comparison tests
+// These tests compare individual G-buffer channels between MinimalGISample
+// and IntermediateSample using --diag-mode to bypass lighting and output
+// raw G-buffer values. Frame 1 is used to avoid temporal accumulation.
+// ---------------------------------------------------------------------------
+
+static const char* kMinimalGIDiagArgs  = "--indirect-mode NONE --intermediate-sample-compatibility-mode --diag-mode ";
+static const char* kIntermediateDiagArgs = "--minimal-gi-sample-compatibility-mode-di --diag-mode ";
+
+static StochasticThresholds GetGBufferThresholds()
+{
+    StochasticThresholds t = GetThresholds();
+    t.absAvgDeltaThreshold    = 0.02f;
+    t.relDifferenceThreshold  = 0.10f;
+    t.absStdDevDeltaThreshold = 0.05f;
+    t.imageAbsAvgDeltaThreshold  = 0.01f;
+    t.imageRelDifferenceThreshold = 0.02f;
+    return t;
+}
+
+TEST(SampleImageTests, GBuffer_Roughness_MinimalGI_vs_Intermediate)
+{
+    fs::path outA = GetOutputDir() / "GBuf_Roughness_MinimalGI.bmp";
+    fs::path outB = GetOutputDir() / "GBuf_Roughness_Intermediate.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample",    std::string(kMinimalGIDiagArgs) + "1", outA, 1), 0) << "MinimalGISample failed";
+    ASSERT_EQ(RunSample("IntermediateSample", std::string(kIntermediateDiagArgs) + "1", outB, 1), 0) << "IntermediateSample failed";
+    EXPECT_TRUE(CompareImages(outA, outB, "GBuffer Roughness", GetGBufferThresholds()));
+}
+
+TEST(SampleImageTests, GBuffer_Normals_MinimalGI_vs_Intermediate)
+{
+    fs::path outA = GetOutputDir() / "GBuf_Normals_MinimalGI.bmp";
+    fs::path outB = GetOutputDir() / "GBuf_Normals_Intermediate.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample",    std::string(kMinimalGIDiagArgs) + "2", outA, 1), 0) << "MinimalGISample failed";
+    ASSERT_EQ(RunSample("IntermediateSample", std::string(kIntermediateDiagArgs) + "2", outB, 1), 0) << "IntermediateSample failed";
+    EXPECT_TRUE(CompareImages(outA, outB, "GBuffer Normals", GetGBufferThresholds()));
+}
+
+TEST(SampleImageTests, GBuffer_DiffuseAlbedo_MinimalGI_vs_Intermediate)
+{
+    fs::path outA = GetOutputDir() / "GBuf_DiffAlbedo_MinimalGI.bmp";
+    fs::path outB = GetOutputDir() / "GBuf_DiffAlbedo_Intermediate.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample",    std::string(kMinimalGIDiagArgs) + "3", outA, 1), 0) << "MinimalGISample failed";
+    ASSERT_EQ(RunSample("IntermediateSample", std::string(kIntermediateDiagArgs) + "3", outB, 1), 0) << "IntermediateSample failed";
+    EXPECT_TRUE(CompareImages(outA, outB, "GBuffer DiffuseAlbedo", GetGBufferThresholds()));
+}
+
+TEST(SampleImageTests, GBuffer_SpecularF0_MinimalGI_vs_Intermediate)
+{
+    fs::path outA = GetOutputDir() / "GBuf_SpecF0_MinimalGI.bmp";
+    fs::path outB = GetOutputDir() / "GBuf_SpecF0_Intermediate.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample",    std::string(kMinimalGIDiagArgs) + "4", outA, 1), 0) << "MinimalGISample failed";
+    ASSERT_EQ(RunSample("IntermediateSample", std::string(kIntermediateDiagArgs) + "4", outB, 1), 0) << "IntermediateSample failed";
+    EXPECT_TRUE(CompareImages(outA, outB, "GBuffer SpecularF0", GetGBufferThresholds()));
+}
+
+TEST(SampleImageTests, GBuffer_Depth_MinimalGI_vs_Intermediate)
+{
+    fs::path outA = GetOutputDir() / "GBuf_Depth_MinimalGI.bmp";
+    fs::path outB = GetOutputDir() / "GBuf_Depth_Intermediate.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample",    std::string(kMinimalGIDiagArgs) + "5", outA, 1), 0) << "MinimalGISample failed";
+    ASSERT_EQ(RunSample("IntermediateSample", std::string(kIntermediateDiagArgs) + "5", outB, 1), 0) << "IntermediateSample failed";
+    EXPECT_TRUE(CompareImages(outA, outB, "GBuffer Depth", GetGBufferThresholds()));
 }

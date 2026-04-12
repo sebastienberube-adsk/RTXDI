@@ -52,6 +52,31 @@ std::istream& operator>> (std::istream& is, ReSTIRDI_ResamplingMode& mode)
 }
 }
 
+namespace rtxdi
+{
+std::istream& operator>> (std::istream& is, ReSTIRGI_ResamplingMode& mode)
+{
+    std::string s;
+    is >> s;
+    toupper(s);
+
+    if (s == "NONE")
+        mode = rtxdi::ReSTIRGI_ResamplingMode::None;
+    else if (s == "TEMPORAL")
+        mode = rtxdi::ReSTIRGI_ResamplingMode::Temporal;
+    else if (s == "SPATIAL")
+        mode = rtxdi::ReSTIRGI_ResamplingMode::Spatial;
+    else if (s == "TEMPORAL_SPATIAL")
+        mode = rtxdi::ReSTIRGI_ResamplingMode::TemporalAndSpatial;
+    else if (s == "FUSED")
+        mode = rtxdi::ReSTIRGI_ResamplingMode::FusedSpatiotemporal;
+    else
+        throw cxxopts::exceptions::exception("Unrecognized value passed to the --indirect-resampling argument.");
+
+    return is;
+}
+}
+
 // ---------------------------------------------------------------------------
 // Command-line processing
 // ---------------------------------------------------------------------------
@@ -75,8 +100,13 @@ void ProcessCommandLine(int argc, char** argv,
         ("width", "Render width override", value(args.renderWidth))
         ("height", "Render height override", value(args.renderHeight))
         ("direct-resampling", "Direct lighting resampling mode: NONE, TEMPORAL, SPATIAL, TEMPORAL_SPATIAL, FUSED", value(ui.lightingSettings.resamplingMode))
-        ("disable-gi", "Disable ReSTIR GI (DI only)", value<bool>())
+        ("indirect-mode", "Indirect lighting mode: NONE, RESTIRGI", value<std::string>())
+        ("indirect-resampling", "ReSTIR GI resampling mode: NONE, TEMPORAL, SPATIAL, TEMPORAL_SPATIAL, FUSED", value(ui.lightingSettings.giResamplingMode))
+        ("basic-tonemap", "Enable basic tone mapping in compositing (same as MinimalSample)", value<bool>())
+        ("aa-mode", "Anti-aliasing mode: OFF, ACC (accumulation)", value<std::string>())
         ("minimal-sample-compatibility-mode", "Configure settings to match MinimalSample output for testing", value<bool>())
+        ("intermediate-sample-compatibility-mode", "Configure settings to match IntermediateSample output for testing", value<bool>())
+        ("diag-mode", "Diagnostic output mode: 0=off, 1=roughness, 2=normals, 3=diffuseAlbedo, 4=specularF0, 5=depth", value(args.diagMode))
         ;
 
     auto result = options.parse(argc, argv);
@@ -92,9 +122,29 @@ void ProcessCommandLine(int argc, char** argv,
         args.graphicsApi = nvrhi::GraphicsAPI::VULKAN;
     }
 
-    if (result.count("disable-gi"))
+    if (result.count("basic-tonemap"))
     {
-        args.disableGI = true;
+        ui.lightingSettings.enableBasicToneMapping = true;
+    }
+
+    if (result.count("indirect-mode"))
+    {
+        std::string mode = result["indirect-mode"].as<std::string>();
+        toupper(mode);
+        if (mode == "NONE")
+            ui.lightingSettings.enableBrdfIndirect = false;
+        else if (mode == "RESTIRGI")
+            ui.lightingSettings.enableBrdfIndirect = true;
+        else
+            throw cxxopts::exceptions::exception("Unrecognized value passed to the --indirect-mode argument.");
+    }
+
+    if (result.count("aa-mode"))
+    {
+        std::string mode = result["aa-mode"].as<std::string>();
+        toupper(mode);
+        if (mode == "ACC")
+            ui.enableAccumulation = true;
     }
 
     if (result.count("minimal-sample-compatibility-mode"))
@@ -103,8 +153,19 @@ void ProcessCommandLine(int argc, char** argv,
         ui.lightingSettings.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
         ui.lightingSettings.discardInvisibleSamples = true;
         ui.lightingSettings.numDisocclusionBoostSamples = 0;
-        // MinimalSample does not set enableMaterialSimilarityTest (defaults to false)
         ui.lightingSettings.enableMaterialSimilarityTest = false;
+        ui.lightingSettings.enableBasicToneMapping = true;
+    }
+
+    if (result.count("intermediate-sample-compatibility-mode"))
+    {
+        // Match IntermediateSample's "minimal-sample-compatibility-mode" settings
+        ui.lightingSettings.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
+        ui.lightingSettings.discardInvisibleSamples = true;
+        ui.lightingSettings.numDisocclusionBoostSamples = 0;
+        ui.lightingSettings.enableMaterialSimilarityTest = false;
+        ui.lightingSettings.enableBasicToneMapping = true;
+        ui.lightingSettings.basicTonemapBias = 0.035f;
     }
 
     if (args.renderWidth > 0 && args.renderHeight > 0)

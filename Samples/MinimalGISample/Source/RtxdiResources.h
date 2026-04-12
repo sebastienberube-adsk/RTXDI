@@ -15,6 +15,7 @@
 namespace rtxdi
 {
     class ReSTIRDIContext;
+    class ReSTIRGIContext;
 }
 
 class RtxdiResources
@@ -25,6 +26,8 @@ public:
     nvrhi::BufferHandle NeighborOffsetsBuffer;
     nvrhi::BufferHandle LightReservoirBuffer;
     nvrhi::BufferHandle GeometryInstanceToLightBuffer;
+    nvrhi::BufferHandle SecondaryGBuffer;
+    nvrhi::BufferHandle GIReservoirBuffer;
 
     RtxdiResources(
         nvrhi::IDevice* device, 

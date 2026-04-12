@@ -119,4 +119,37 @@ float3 basicToneMapping(float3 color, float bias)
     return color;
 }
 
+// https://graphics.pixar.com/library/OrthonormalB/paper.pdf
+void branchlessONB(in float3 n, out float3 b1, out float3 b2)
+{
+    float sign = n.z >= 0.0f ? 1.0f : -1.0f;
+    float a = -1.0f / (sign + n.z);
+    float b = n.x * n.y * a;
+    b1 = float3(1.0f + sign * n.x * n.x * a, sign * b, -sign * n.x);
+    b2 = float3(b, sign + n.y * n.y * a, -n.y);
+}
+
+float3 sampleGGX_VNDF(float3 Ve, float roughness, float2 random)
+{
+    float alpha = square(roughness);
+
+    float3 Vh = normalize(float3(alpha * Ve.x, alpha * Ve.y, Ve.z));
+
+    float lensq = square(Vh.x) + square(Vh.y);
+    float3 T1 = lensq > 0.0 ? float3(-Vh.y, Vh.x, 0.0) / sqrt(lensq) : float3(1.0, 0.0, 0.0);
+    float3 T2 = cross(Vh, T1);
+
+    float r = sqrt(random.x);
+    float phi = 2.0 * M_PI * random.y;
+    float t1 = r * cos(phi);
+    float t2 = r * sin(phi);
+    float s = 0.5 * (1.0 + Vh.z);
+    t2 = (1.0 - s) * sqrt(1.0 - square(t1)) + s * t2;
+
+    float3 Nh = t1 * T1 + t2 * T2 + sqrt(max(0.0, 1.0 - square(t1) - square(t2))) * Vh;
+
+    float3 Ne = float3(alpha * Nh.x, alpha * Nh.y, max(0.0, Nh.z));
+    return Ne;
+}
+
 #endif // HELPER_FUNCTIONS_HLSLI

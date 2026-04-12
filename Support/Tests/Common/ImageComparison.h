@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -92,3 +93,11 @@ std::string FormatStochasticSummary(
 // LoadImageRGBA8 uses stb_image; the implementation is in ImageIO.cpp
 // which must be compiled alongside a STB_IMAGE_IMPLEMENTATION provider.
 std::vector<uint8_t> LoadImageRGBA8(const std::string& path, size_t& width, size_t& height);
+
+// Saves an annotated copy with colored 1-pixel inner borders on failed tiles.
+// Border color: yellow (1x threshold) -> red (2x+ threshold).
+// Requires a STB_IMAGE_WRITE_IMPLEMENTATION provider to be compiled into the target.
+void SaveAnnotatedImage(const uint8_t* pixels, size_t width, size_t height,
+                        const StochasticResult& result,
+                        const StochasticThresholds& thresholds,
+                        const std::filesystem::path& outputPath);

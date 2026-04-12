@@ -11,7 +11,6 @@
 #include <ImageComparison.h>
 #include "SampleTests.h"
 #include <gtest/gtest.h>
-#include <stb_image_write.h>
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -109,65 +108,6 @@ static int RunSample(const std::string& exeName, const std::string& extraArgs,
     if (rc != 0)
         std::cerr << "  Sample exited with code " << rc << std::endl;
     return rc;
-}
-
-// Saves an annotated copy with colored 1-pixel inner borders on failed tiles.
-// Border color: yellow (1x threshold) -> red (2x+ threshold).
-static void SaveAnnotatedImage(const uint8_t* pixels, size_t width, size_t height,
-                               const StochasticResult& result,
-                               const StochasticThresholds& thresholds,
-                               const fs::path& outputPath)
-{
-    std::vector<uint8_t> annotated(pixels, pixels + width * height * 4);
-    const uint32_t ts = thresholds.tileSize;
-    const uint32_t W = static_cast<uint32_t>(width);
-    const uint32_t H = static_cast<uint32_t>(height);
-
-    for (const auto& tile : result.tiles)
-    {
-        if (tile.passed)
-            continue;
-
-        float worstRatio = GetFailureDegree(tile, thresholds);
-
-        // Lerp: 1x -> yellow (255,255,0), 2x+ -> red (255,0,0).
-        float t = std::clamp((worstRatio - 1.0f), 0.0f, 1.0f);
-        uint8_t r = 255;
-        uint8_t g = static_cast<uint8_t>(255.0f * (1.0f - t) + 0.5f);
-        uint8_t b = 0;
-
-        auto setPixel = [&](uint32_t px, uint32_t py) {
-            if (px < W && py < H)
-            {
-                size_t idx = ((size_t)py * W + px) * 4;
-                annotated[idx + 0] = r;
-                annotated[idx + 1] = g;
-                annotated[idx + 2] = b;
-                annotated[idx + 3] = 255;
-            }
-        };
-
-        uint32_t x0 = tile.tileX * ts;
-        uint32_t y0 = tile.tileY * ts;
-        uint32_t x1 = std::min(x0 + ts, W);
-        uint32_t y1 = std::min(y0 + ts, H);
-
-        for (uint32_t x = x0; x < x1; x++)
-        {
-            setPixel(x, y0);
-            if (y1 > y0 + 1) setPixel(x, y1 - 1);
-        }
-        for (uint32_t y = y0 + 1; y + 1 < y1; y++)
-        {
-            setPixel(x0, y);
-            if (x1 > x0 + 1) setPixel(x1 - 1, y);
-        }
-    }
-
-    if (stbi_write_bmp(outputPath.string().c_str(), W, H, 4, annotated.data()))
-        std::cout << "  Annotated image saved to: " << outputPath << std::endl;
-    else
-        std::cerr << "  WARNING: failed to save annotated image to: " << outputPath << std::endl;
 }
 
 static ::testing::AssertionResult CompareImages(

@@ -132,6 +132,7 @@ void CompositingPass::Render(
     constants.noiseClampLow = ui.noiseClampLow;
     constants.noiseClampHigh = ui.noiseClampHigh;
     constants.enableBasicToneMapping = ui.enableBasicToneMapping;
+    constants.basicTonemapBias = ui.basicTonemapBias;
     constants.diagMode = ui.diagMode;
     commandList->writeBuffer(m_constantBuffer, &constants, sizeof(constants));
 

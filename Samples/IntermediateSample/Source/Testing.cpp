@@ -199,6 +199,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("minimal-gi-sample-compatibility-mode-gi", "Match MinimalGISample parameters for testing GI", value(minimalGISampleCompat))
         ("tone-mapping", "Tone mapping toggle", value(ui.enableToneMapping))
         ("basic-tonemap", "Basic tone mapping in compositing (same as MinimalSample)", value(ui.enableBasicToneMapping))
+        ("rtxdi-tonemap-bias", "Override basic tonemap bias (enables basic-tonemap)", value<float>())
         ("transparent", "Transparent materials toggle", value(ui.gbufferSettings.enableTransparentGeometry))
         ("verbose", "Enable debug log messages", value(args.verbose))
         ("vk", "Run the application using Vulkan (otherwise D3D12 if supported)", value(useVk))
@@ -206,9 +207,10 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("diag-mode", "Diagnostic output mode: 0=off, 1=roughness, 2=normals, 3=diffuseAlbedo, 4=specularF0, 5=depth", value(args.diagMode))
     ;
 
+    cxxopts::ParseResult parseResult;
     try
     {
-        options.parse(argc, argv);
+        parseResult = options.parse(argc, argv);
 
         if (help)
         {
@@ -250,7 +252,10 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
     if (checkerboard)
         ui.restirDIStaticParams.CheckerboardSamplingMode = rtxdi::CheckerboardMode::Black;
 
-    bool minimalSampleCompatibilityMode = minimalSampleCompat || minimalGISampleCompat;
+    bool hasExplicitAAMode = parseResult.count("aa-mode") > 0;
+    AntiAliasingMode parsedAAMode = ui.aaMode;
+
+    bool minimalSampleCompatibilityMode = minimalSampleCompat || minimalGISampleCompat || beautyShotMode;
     if (minimalSampleCompatibilityMode)
     {
         // Match MinimalGISample's "intermediate-sample-compatibility-mode" settings
@@ -258,7 +263,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         // Match MinimalGISample's resampling mode and general app settings
         ui.restirDI.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
         ui.enableBasicToneMapping = true;
-        //TODO: Set basic tonemap bias to 0.035;
+        ui.basicTonemapBias = 0.035f;
         ui.enableToneMapping = false;
         ui.enableBloom = false;
         ui.rasterizeGBuffer = false;
@@ -314,6 +319,15 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
     {
         // TODO: Enable ReSTIRGI (fused spatiotemporal)
         //
+    }
+
+    if (hasExplicitAAMode)
+        ui.aaMode = parsedAAMode;
+
+    if (parseResult.count("rtxdi-tonemap-bias"))
+    {
+        ui.basicTonemapBias = parseResult["rtxdi-tonemap-bias"].as<float>();
+        ui.enableBasicToneMapping = true;
     }
 }
 

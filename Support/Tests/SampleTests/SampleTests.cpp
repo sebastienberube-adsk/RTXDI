@@ -226,6 +226,20 @@ TEST(SampleImageTests, MinimalGI_vs_Intermediate_DI)
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (no GI)", t));
 }
 
+/*TEST(SampleImageTests, MinimalGI_vs_Intermediate_DI_VK)
+{
+    fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_DI_VK_A.bmp";
+    fs::path outB = GetOutputDir() / "MinimalGI_vs_Intermediate_DI_VK_B.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample", "--indirect-mode NONE --intermediate-sample-compatibility-mode --vk", outA, 64), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--minimal-gi-sample-compatibility-mode-di --vk", outB, 64), 0)
+        << "IntermediateSample failed to run";
+    StochasticThresholds t = GetThresholds();
+    t.imageAbsAvgDeltaThreshold = 0.075f;
+    t.imageRelDifferenceThreshold = 0.100f;
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate VK (no GI)", t));
+}*/
+
 TEST(SampleImageTests, MinimalGI_vs_Intermediate_GI)
 {
     fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_A.bmp";
@@ -235,6 +249,39 @@ TEST(SampleImageTests, MinimalGI_vs_Intermediate_GI)
     ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode RESTIRGI --minimal-gi-sample-compatibility-mode-gi", outB, 64), 0)
         << "IntermediateSample failed to run";
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (GI)"));
+}
+
+TEST(SampleImageTests, MinimalGI_vs_Intermediate_GI_VK)
+{
+    fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_VK_A.bmp";
+    fs::path outB = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_VK_B.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample", "--indirect-mode RESTIRGI --intermediate-sample-compatibility-mode --vk", outA, 64), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode RESTIRGI --minimal-gi-sample-compatibility-mode-gi --vk", outB, 64), 0)
+        << "IntermediateSample failed to run";
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate VK (GI)"));
+}
+
+TEST(SampleImageTests, MinimalGI_vs_Intermediate_GI_Acc)
+{
+    fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_Acc_A.bmp";
+    fs::path outB = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_Acc_B.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample", "--indirect-mode RESTIRGI --intermediate-sample-compatibility-mode --aa-mode ACC", outA, 64), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode RESTIRGI --minimal-gi-sample-compatibility-mode-gi --aa-mode ACC", outB, 64), 0)
+        << "IntermediateSample failed to run";
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (GI Acc)"));
+}
+
+TEST(SampleImageTests, MinimalGI_vs_Intermediate_GI_Acc_VK)
+{
+    fs::path outA = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_Acc_VK_A.bmp";
+    fs::path outB = GetOutputDir() / "MinimalGI_vs_Intermediate_GI_Acc_VK_B.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample", "--indirect-mode RESTIRGI --intermediate-sample-compatibility-mode --aa-mode ACC --vk", outA, 64), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode RESTIRGI --minimal-gi-sample-compatibility-mode-gi --aa-mode ACC --vk", outB, 64), 0)
+        << "IntermediateSample failed to run";
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate VK (GI Acc)"));
 }
 
 TEST(SampleImageTests, Intermediate_vs_Full_NoNRD)

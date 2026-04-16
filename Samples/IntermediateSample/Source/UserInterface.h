@@ -109,6 +109,7 @@ struct UIData
     uint32_t framesToAccumulate = 0;
     ibool enableToneMapping = true;
     ibool enableBasicToneMapping = false;
+    float basicTonemapBias = 0.035f;
     ibool enablePixelJitter = false;
     ibool rasterizeGBuffer = true;
     ibool useRayQuery = true;

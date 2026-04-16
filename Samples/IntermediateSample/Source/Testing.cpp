@@ -255,7 +255,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
     bool hasExplicitAAMode = parseResult.count("aa-mode") > 0;
     AntiAliasingMode parsedAAMode = ui.aaMode;
 
-    bool minimalSampleCompatibilityMode = minimalSampleCompat || minimalGISampleCompat || beautyShotMode;
+    bool minimalSampleCompatibilityMode = minimalSampleCompat || minimalGISampleCompat;
     if (minimalSampleCompatibilityMode)
     {
         // Match MinimalGISample's "intermediate-sample-compatibility-mode" settings

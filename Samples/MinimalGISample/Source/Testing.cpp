@@ -103,6 +103,7 @@ void ProcessCommandLine(int argc, char** argv,
         ("indirect-mode", "Indirect lighting mode: NONE, RESTIRGI", value<std::string>())
         ("indirect-resampling", "ReSTIR GI resampling mode: NONE, TEMPORAL, SPATIAL, TEMPORAL_SPATIAL, FUSED", value(ui.lightingSettings.giResamplingMode))
         ("basic-tonemap", "Enable basic tone mapping in compositing (same as MinimalSample)", value<bool>())
+        ("rtxdi-tonemap-bias", "Override basic tonemap bias (enables basic-tonemap)", value<float>())
         ("aa-mode", "Anti-aliasing mode: OFF, ACC (accumulation)", value<std::string>())
         ("minimal-sample-compatibility-mode", "Configure settings to match MinimalSample output for testing", value<bool>())
         ("intermediate-sample-compatibility-mode", "Configure settings to match IntermediateSample output for testing", value<bool>())
@@ -155,6 +156,7 @@ void ProcessCommandLine(int argc, char** argv,
         ui.lightingSettings.numDisocclusionBoostSamples = 0;
         ui.lightingSettings.enableMaterialSimilarityTest = false;
         ui.lightingSettings.enableBasicToneMapping = true;
+        ui.lightingSettings.basicTonemapBias = 0.005f;
     }
 
     if (result.count("intermediate-sample-compatibility-mode"))
@@ -166,6 +168,12 @@ void ProcessCommandLine(int argc, char** argv,
         ui.lightingSettings.enableMaterialSimilarityTest = false;
         ui.lightingSettings.enableBasicToneMapping = true;
         ui.lightingSettings.basicTonemapBias = 0.035f;
+    }
+
+    if (result.count("rtxdi-tonemap-bias"))
+    {
+        ui.lightingSettings.basicTonemapBias = result["rtxdi-tonemap-bias"].as<float>();
+        ui.lightingSettings.enableBasicToneMapping = true;
     }
 
     if (args.renderWidth > 0 && args.renderHeight > 0)

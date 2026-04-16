@@ -146,6 +146,11 @@ struct CompositingConstants
     uint checkerboard;
     uint enableBasicToneMapping;
     int diagMode;
+
+    float basicTonemapBias;
+    int _pad0;
+    int _pad1;
+    int _pad2;
 };
 
 struct AccumulationConstants

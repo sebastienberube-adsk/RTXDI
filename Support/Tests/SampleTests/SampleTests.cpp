@@ -178,6 +178,16 @@ TEST(SampleImageTests, T00_Threshold_IntermediateSample_SelfComparison)
     EXPECT_TRUE(CompareImages(outA, outB, "T00_Threshold_IntermediateSample_SelfComparison"));
 }
 
+TEST(SampleImageTests, T00_Minimal_VK_vs_Minimal_DX)
+{
+    fs::path outA = GetOutputDir() / "T00_Minimal_VK_vs_Minimal_DX_A.bmp";
+    fs::path outB = GetOutputDir() / "T00_Minimal_VK_vs_Minimal_DX_B.bmp";
+
+    ASSERT_EQ(RunSample("MinimalSample", "", outA, 64), 0) << "MinimalSample failed to run";
+    ASSERT_EQ(RunSample("MinimalSample", "--vk", outB, 64), 0) << "MinimalSample failed to run";
+    EXPECT_TRUE(CompareImages(outA, outB, "T00_Minimal_VK_vs_Minimal_DX"));
+}
+
 TEST(SampleImageTests, T01_Minimal_vs_MinimalGI_DI_DX)
 {
     fs::path outA = GetOutputDir() / "T01_Minimal_vs_MinimalGI_DI_DX_A.bmp";

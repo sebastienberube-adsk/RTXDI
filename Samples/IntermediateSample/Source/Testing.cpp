@@ -271,7 +271,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.rasterizeGBuffer = false;
         ui.gbufferSettings.enableAlphaTestedGeometry = false;
         ui.gbufferSettings.enableTransparentGeometry = false;
-        ui.aaMode = AntiAliasingMode::Accumulation;
+        ui.aaMode = AntiAliasingMode::None;
         args.disableEnvironment = false;
         // Match MinimalGISample path (no PostprocessGBuffer roughness shaping).
         args.skipPostprocessGBuffer = true;

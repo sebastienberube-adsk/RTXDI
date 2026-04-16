@@ -193,7 +193,32 @@ public:
         m_scene->FinishedLoading(GetFrameIndex());
         
         InitCameraFromScene();
-        
+
+        auto* sceneGraph = m_scene->GetSceneGraph().get();
+
+        if (!m_args.disableEnvironment)
+        {
+            for (const auto& pLight : sceneGraph->GetLights())
+            {
+                if (pLight->GetLightType() == LightType_Directional)
+                {
+                    m_sunLight = std::static_pointer_cast<donut::engine::DirectionalLight>(pLight);
+                    break;
+                }
+            }
+
+            if (!m_sunLight)
+            {
+                m_sunLight = std::make_shared<donut::engine::DirectionalLight>();
+                sceneGraph->AttachLeafNode(sceneGraph->GetRootNode(), m_sunLight);
+                m_sunLight->SetDirection(dm::double3(0.15, -1.0, 0.3));
+                m_sunLight->angularSize = 1.f;
+            }
+
+            m_environmentLight = std::make_shared<EnvironmentLight>();
+            sceneGraph->AttachLeafNode(sceneGraph->GetRootNode(), m_environmentLight);
+        }
+
         m_scene->BuildMeshBLASes(GetDevice());
 
         m_commandList->open();

@@ -198,7 +198,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("environment", "Environment map rendering toggle", value(ui.enableEnvironmentRendering))
         ("minimal-gi-sample-compatibility-mode-di", "Match MinimalGISample parameter defaults", value(minimalSampleCompat))
         ("minimal-gi-sample-compatibility-mode-gi", "Match MinimalGISample parameters for testing GI", value(minimalGISampleCompat))
-        ("beauty-shot-mode", "Beauty shot comparison mode", value(beautyShotMode))
+        ("beauty-shot-mode", "Beauty Shot Mode", value(beautyShotMode))
         ("tone-mapping", "Tone mapping toggle", value(ui.enableToneMapping))
         ("basic-tonemap", "Basic tone mapping in compositing (same as MinimalSample)", value(ui.enableBasicToneMapping))
         ("rtxdi-tonemap-bias", "Override basic tonemap bias (enables basic-tonemap)", value<float>())
@@ -271,8 +271,8 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.rasterizeGBuffer = false;
         ui.gbufferSettings.enableAlphaTestedGeometry = false;
         ui.gbufferSettings.enableTransparentGeometry = false;
-        ui.aaMode = AntiAliasingMode::None;
-        args.disableEnvironment = true;
+        ui.aaMode = AntiAliasingMode::Accumulation;
+        args.disableEnvironment = false;
         // Match MinimalGISample path (no PostprocessGBuffer roughness shaping).
         args.skipPostprocessGBuffer = true;
 
@@ -280,8 +280,8 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.restirDI.initialSamplingParams.localLightSamplingMode = ReSTIRDI_LocalLightSamplingMode::Uniform;
         ui.restirDI.initialSamplingParams.numPrimaryLocalLightSamples = 8;
         ui.restirDI.initialSamplingParams.numPrimaryBrdfSamples = 1;
-        ui.restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples = 0;
-        ui.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples = 0;
+        ui.restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples = 1;
+        ui.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples = 1;
         ui.restirDI.initialSamplingParams.enableInitialVisibility = true;
         ui.restirDI.initialSamplingParams.brdfCutoff = 0.0f;
 
@@ -317,12 +317,18 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ui.restirDI.shadingParams.finalVisibilityMaxDistance = 16.0f;
     }
     // Additional settings when testing GI
-    if (minimalGISampleCompat)
+    if (minimalGISampleCompat || beautyShotMode)
     {
-        // TODO: Enable ReSTIRGI (fused spatiotemporal)
-        //
+        ui.indirectLightingMode = IndirectLightingMode::ReStirGI;
     }
-
+    if (beautyShotMode)
+    {
+        ui.aaMode = AntiAliasingMode::Accumulation;
+        args.disableEnvironment = false;
+        ui.basicTonemapBias = 0.003f;
+        ui.restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples = 1;
+        ui.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples = 1;
+    }
     if (hasExplicitAAMode)
         ui.aaMode = parsedAAMode;
 

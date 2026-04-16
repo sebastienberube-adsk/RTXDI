@@ -285,7 +285,7 @@ TEST(SampleImageTests, MinimalGI_vs_Intermediate_GI_Acc_VK)
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate VK (GI Acc)"));
 }
 
-TEST(SampleImageTests, DISABLED_MinimalGI_vs_Intermediate_Beauty_Shot)
+TEST(SampleImageTests, MinimalGI_vs_Intermediate_Beauty_Shot)
 {
     static const char* kBeautyShotScene = "/Assets/Media/livingroom_Sun.scene.json";
 

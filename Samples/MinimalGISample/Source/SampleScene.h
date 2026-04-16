@@ -12,6 +12,20 @@
 
 #include <donut/engine/Scene.h>
 
+constexpr int LightType_Environment = 1000;
+
+class EnvironmentLight : public donut::engine::Light
+{
+public:
+    dm::float3 radianceScale = 1.f;
+    int textureIndex = -1;
+    float rotation = 0.f;
+    dm::uint2 textureSize = 0u;
+
+    [[nodiscard]] int GetLightType() const override;
+    [[nodiscard]] std::shared_ptr<SceneGraphLeaf> Clone() override;
+};
+
 class SampleScene : public donut::engine::Scene
 {
 public:

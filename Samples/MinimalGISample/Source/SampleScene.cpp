@@ -205,3 +205,18 @@ nvrhi::rt::IAccelStruct* SampleScene::GetTopLevelAS() const
 {
     return m_topLevelAS;
 }
+
+int EnvironmentLight::GetLightType() const
+{
+    return LightType_Environment;
+}
+
+std::shared_ptr<donut::engine::SceneGraphLeaf> EnvironmentLight::Clone()
+{
+    auto clone = std::make_shared<EnvironmentLight>();
+    clone->radianceScale = radianceScale;
+    clone->textureIndex = textureIndex;
+    clone->rotation = rotation;
+    clone->textureSize = textureSize;
+    return clone;
+}

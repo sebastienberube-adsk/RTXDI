@@ -168,6 +168,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
     ibool checkerboard = false;
     bool minimalSampleCompat = false;
     bool minimalGISampleCompat = false;
+    bool beautyShotMode = false;
     options.add_options()
         ("aa-mode", "Anti-aliasing mode: OFF, ACC, TAA", value(ui.aaMode))
         ("alpha-tested", "Alpha-tested materials toggle", value(ui.gbufferSettings.enableAlphaTestedGeometry))
@@ -197,6 +198,7 @@ void ProcessCommandLine(int argc, char** argv, donut::app::DeviceCreationParamet
         ("environment", "Environment map rendering toggle", value(ui.enableEnvironmentRendering))
         ("minimal-gi-sample-compatibility-mode-di", "Match MinimalGISample parameter defaults", value(minimalSampleCompat))
         ("minimal-gi-sample-compatibility-mode-gi", "Match MinimalGISample parameters for testing GI", value(minimalGISampleCompat))
+        ("beauty-shot-mode", "Beauty shot comparison mode", value(beautyShotMode))
         ("tone-mapping", "Tone mapping toggle", value(ui.enableToneMapping))
         ("basic-tonemap", "Basic tone mapping in compositing (same as MinimalSample)", value(ui.enableBasicToneMapping))
         ("rtxdi-tonemap-bias", "Override basic tonemap bias (enables basic-tonemap)", value<float>())

@@ -43,7 +43,13 @@ set(shaders
    PrimaryRays.hlsli
    SceneGeometry.hlsli
    ShaderParameters.h
-   TriangleLight.hlsli)
+   TriangleLight.hlsli
+   PolymorphicLight.hlsli
+   LightShaping.hlsli
+   RenderEnvironmentMap.hlsl
+   PreprocessEnvironmentMap.hlsl
+   PresampleLights.hlsl
+   PresampleEnvironmentMap.hlsl)
 
 # Organize MSVS filters (the little folders in the solution explorer) to match the folder structure
 foreach(source IN LISTS shaders)

@@ -7,18 +7,33 @@
 
 float2 RAB_GetEnvironmentMapRandXYFromDir(float3 worldDir)
 {
-    return float2(0.0, 0.0);
+    float2 uv = directionToEquirectUV(worldDir); 
+    uv.x -= g_Const.sceneConstants.environmentRotation;
+    uv = frac(uv);
+    return uv;
 }
 
 float RAB_EvaluateEnvironmentMapSamplingPdf(float3 L)
 {
-    // No Environment sampling
-    return 0;
+    if (!g_Const.restirDI.initialSamplingParams.environmentMapImportanceSampling)
+        return 1.0;
+
+    float2 uv = RAB_GetEnvironmentMapRandXYFromDir(L);
+
+    uint2 pdfTextureSize = g_Const.environmentPdfTextureSize.xy;
+    uint2 texelPosition = uint2(pdfTextureSize * uv);
+    float texelValue = t_EnvironmentPdfTexture[texelPosition].r;
+    
+    int lastMipLevel = max(0, int(floor(log2(max(pdfTextureSize.x, pdfTextureSize.y)))));
+    float averageValue = t_EnvironmentPdfTexture.mips[lastMipLevel][uint2(0, 0)].x;
+    
+    float sum = averageValue * square(1u << lastMipLevel);
+
+    return texelValue / sum;
 }
 
 float RAB_EvaluateLocalLightSourcePdf(uint lightIndex)
 {
-    // Uniform pdf
     return 1.0 / g_Const.lightBufferParams.localLightBufferRegion.numLights;
 }
 
@@ -31,9 +46,6 @@ float3 RAB_GetReflectedRadianceForSurface(float3 incomingRadianceLocation, float
 
     float d = Lambert(surface.normal, -L);
     float3 s;
-    // Keep GGX disabled at exact roughness=0 to avoid undefined/unstable behavior
-    // around the microfacet distribution denominator. This matches the guard used
-    // in Intermediate/Full bridge code paths and keeps target-PDF evaluation stable.
     if (surface.material.roughness == 0)
         s = 0;
     else
@@ -48,46 +60,12 @@ float RAB_GetReflectedLuminanceForSurface(float3 incomingRadianceLocation, float
     return RTXDI_Luminance(RAB_GetReflectedRadianceForSurface(incomingRadianceLocation, incomingRadiance, surface));
 }
 
-// Evaluate the surface BRDF and compute the weighted reflected radiance for the given light sample
-float3 ShadeSurfaceWithLightSample(RAB_LightSample lightSample, RAB_Surface surface)
-{
-    // Ignore invalid light samples
-    if (lightSample.solidAnglePdf <= 0)
-        return 0;
-
-    float3 L = normalize(lightSample.position - surface.worldPos);
-
-    // Ignore light samples that are below the geometric surface (but above the normal mapped surface)
-    if (dot(L, surface.geoNormal) <= 0)
-        return 0;
-
-
-    float3 V = surface.viewDir;
-    
-    // Evaluate the BRDF
-    float diffuse = Lambert(surface.normal, -L);
-    float3 specular = 0;
-    // Same roughness=0 guard as above: avoid evaluating GGX at a degenerate
-    // roughness and keep shading/PDF behavior aligned with other samples.
-    if (RAB_GetMaterial(surface).roughness > 0)
-        specular = GGX_times_NdotL(V, L, surface.normal, max(RAB_GetMaterial(surface).roughness, kMinRoughness), RAB_GetMaterial(surface).specularF0);
-
-    float3 reflectedRadiance = lightSample.radiance * (diffuse * surface.material.diffuseAlbedo + specular);
-
-    return reflectedRadiance / lightSample.solidAnglePdf;
-}
-
-// Compute the target PDF (p-hat) for the given light sample relative to a surface
 float RAB_GetLightSampleTargetPdfForSurface(RAB_LightSample lightSample, RAB_Surface surface)
 {
-    // Second-best implementation: the PDF is proportional to the reflected radiance.
-    // The best implementation would be taking visibility into account,
-    // but that would be prohibitively expensive.
-    //return calcLuminance(ShadeSurfaceWithLightSample(lightSample, surface));
-    // Use RTXDI_Luminance for p-hat, matching IntermediateSample and SDK-side
-    // luminance usage in MIS paths. This removes a BT.601 vs BT.709 mismatch
-    // that previously skewed relative sample weights.
-    return RTXDI_Luminance(ShadeSurfaceWithLightSample(lightSample, surface));
+    if (lightSample.solidAnglePdf <= 0)
+        return 0;
+    
+    return RAB_GetReflectedLuminanceForSurface(lightSample.position, lightSample.radiance, surface) / lightSample.solidAnglePdf;
 }
 
 float RAB_GetGISampleTargetPdfForSurface(float3 samplePosition, float3 sampleRadiance, RAB_Surface surface)
@@ -99,16 +77,35 @@ void RAB_GetLightDirDistance(RAB_Surface surface, RAB_LightSample lightSample,
     out float3 o_lightDir,
     out float o_lightDistance)
 {
-    float3 toLight = lightSample.position - surface.worldPos;
-    o_lightDistance = length(toLight);
-    o_lightDir = toLight / o_lightDistance;
+    if (lightSample.lightType == PolymorphicLightType::kEnvironment)
+    {
+        o_lightDir = -lightSample.normal;
+        o_lightDistance = DISTANT_LIGHT_DISTANCE;
+    }
+    else
+    {
+        float3 toLight = lightSample.position - surface.worldPos;
+        o_lightDistance = length(toLight);
+        o_lightDir = toLight / o_lightDistance;
+    }
 }
 
 bool RTXDI_CompareRelativeDifference(float reference, float candidate, float threshold);
 
 float3 GetEnvironmentRadiance(float3 direction)
 {
-    return float3(0.0, 0.0, 0.0);
+    if (!g_Const.sceneConstants.enableEnvironmentMap)
+        return 0;
+
+    Texture2D environmentLatLongMap = t_BindlessTextures[g_Const.sceneConstants.environmentMapTextureIndex];
+
+    float2 uv = directionToEquirectUV(direction);
+    uv.x -= g_Const.sceneConstants.environmentRotation;
+
+    float3 environmentRadiance = environmentLatLongMap.SampleLevel(s_EnvironmentSampler, uv, 0).rgb;
+    environmentRadiance *= g_Const.sceneConstants.environmentScale;
+
+    return environmentRadiance;
 }
 
 bool IsComplexSurface(int2 pixelPosition, RAB_Surface surface)
@@ -127,9 +124,6 @@ uint getLightIndex(uint instanceID, uint geometryIndex, uint primitiveIndex)
     return lightIndex;
 }
 
-// Return true if anything was hit. If false, RTXDI will do environment map sampling
-// o_lightIndex: If hit, must be a valid light index for RAB_LoadLightInfo, if no local light was hit, must be RTXDI_InvalidLightIndex
-// randXY: The randXY that corresponds to the hit location and is the same used for RAB_SamplePolymorphicLight
 bool RAB_TraceRayForLocalLight(float3 origin, float3 direction, float tMin, float tMax,
     out uint o_lightIndex, out float2 o_randXY)
 {
@@ -158,13 +152,6 @@ bool RAB_TraceRayForLocalLight(float3 origin, float3 direction, float tMin, floa
     }
 
     return hitAnything;
-}
-
-// Compute the position on a triangle light given a pair of random numbers
-RAB_LightSample RAB_SamplePolymorphicLight(RAB_LightInfo lightInfo, RAB_Surface surface, float2 uv)
-{
-    TriangleLight triLight = TriangleLight::Create(lightInfo);
-    return CalcSample(triLight, uv, surface.worldPos);
 }
 
 #endif // RAB_LIGHT_SAMPLING_HLSLI

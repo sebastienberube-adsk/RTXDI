@@ -10,8 +10,6 @@
 
 #pragma pack_matrix(row_major)
 
-#define RTXDI_ENABLE_PRESAMPLING 0
-
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"
 
 #include <Rtxdi/DI/InitialSampling.hlsli>
@@ -61,7 +59,8 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     {
         RTXDI_SampleParameters sampleParams = RTXDI_InitSampleParameters(
             g_Const.restirDI.initialSamplingParams.numPrimaryLocalLightSamples,
-            0, 0,
+            g_Const.restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples,
+            g_Const.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples,
             0,      // numBrdfSamples
             0.f,    // brdfCutoff
             0.001f);
@@ -69,6 +68,9 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
         RAB_LightSample lightSample;
         RTXDI_DIReservoir reservoir = RTXDI_SampleLightsForSurface(rng, tileRng, secondarySurface,
             sampleParams, g_Const.lightBufferParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM,
+#ifdef RTXDI_ENABLE_PRESAMPLING
+            g_Const.localLightsRISBufferSegmentParams, g_Const.environmentLightRISBufferSegmentParams,
+#endif
             lightSample);
 
         if (RTXDI_IsValidDIReservoir(reservoir))

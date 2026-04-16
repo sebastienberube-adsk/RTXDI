@@ -10,8 +10,6 @@
 
 #pragma pack_matrix(row_major)
 
-#define RTXDI_ENABLE_PRESAMPLING 0
-
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"
 
 #include <Rtxdi/DI/SpatialResampling.hlsli>

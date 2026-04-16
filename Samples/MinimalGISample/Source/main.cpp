@@ -33,10 +33,16 @@
 #include "PrepareLightsPass.h"
 #include "LightingPasses.h"
 #include "AccumulationPass.h"
+#include "RenderEnvironmentMapPass.h"
+#include "GenerateMipsPass.h"
 #include "RtxdiResources.h"
 #include "SampleScene.h"
 #include "UserInterface.h"
 #include "Testing.h"
+
+#include <Rtxdi/LightSampling/RISBufferSegmentAllocator.h>
+#include <donut/engine/SceneGraph.h>
+#include <donut/render/SkyPass.h>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -269,6 +275,8 @@ public:
         m_restirDIContext = nullptr;
         m_restirGIContext = nullptr;
         m_rtxdiResources = nullptr;
+        m_environmentMapPdfMipmapPass = nullptr;
+        m_risBufferSegmentAllocator = nullptr;
     }
     
     void SetupView(const nvrhi::FramebufferInfoEx& fbinfo, uint effectiveFrameIndex)
@@ -294,6 +302,9 @@ public:
             GetDevice()->waitForIdle();
 
             m_shaderFactory->ClearCache();
+            m_renderEnvironmentMapPass = nullptr;
+            m_environmentMapPdfMipmapPass = nullptr;
+            m_environmentMapDirty = true;
             
             LoadShaders();
 
@@ -318,6 +329,20 @@ public:
             m_restirGIContext = std::make_unique<rtxdi::ReSTIRGIContext>(giParams);
         }
 
+        if (!m_renderEnvironmentMapPass && m_environmentLight)
+        {
+            m_renderEnvironmentMapPass = std::make_unique<RenderEnvironmentMapPass>(
+                GetDevice(), m_shaderFactory, m_descriptorTableManager, 2048);
+            m_environmentMapDirty = true;
+        }
+
+        nvrhi::ITexture* environmentMap = m_renderEnvironmentMapPass
+            ? m_renderEnvironmentMapPass->GetTexture() : nullptr;
+
+        uint2 environmentMapSize = environmentMap
+            ? uint2(environmentMap->getDesc().width, environmentMap->getDesc().height)
+            : uint2(1, 1);
+
         if (!m_renderTargets)
         {
             m_renderTargets = std::make_unique<RenderTargets>(GetDevice(), int2(fbinfo.width, fbinfo.height));
@@ -330,13 +355,34 @@ public:
             uint32_t numEmissiveMeshes, numEmissiveTriangles;
             m_prepareLightsPass->CountLightsInScene(numEmissiveMeshes, numEmissiveTriangles);
             uint32_t numGeometryInstances = uint32_t(m_scene->GetSceneGraph()->GetGeometryInstancesCount());
+            uint32_t numPrimitiveLights = uint32_t(m_scene->GetSceneGraph()->GetLights().size());
+
+            const uint32_t risTileSize = 1024;
+            const uint32_t risTileCount = 128;
+            m_risBufferSegmentAllocator = std::make_unique<rtxdi::RISBufferSegmentAllocator>();
+            uint32_t localLightOffset = m_risBufferSegmentAllocator->allocateSegment(risTileCount * risTileSize);
+            uint32_t envLightOffset = m_risBufferSegmentAllocator->allocateSegment(risTileCount * risTileSize);
+            m_localLightsRISBufferSegmentParams = { localLightOffset, risTileSize, risTileCount, 0 };
+            m_environmentLightRISBufferSegmentParams = { envLightOffset, risTileSize, risTileCount, 0 };
 
             m_rtxdiResources = std::make_unique<RtxdiResources>(GetDevice(), *m_restirDIContext,
-                numEmissiveMeshes, numEmissiveTriangles, numGeometryInstances);
+                *m_risBufferSegmentAllocator,
+                numEmissiveMeshes, numEmissiveTriangles,
+                numPrimitiveLights, numGeometryInstances,
+                environmentMapSize.x, environmentMapSize.y);
 
             m_prepareLightsPass->CreateBindingSet(*m_rtxdiResources);
             
             rtxdiResourcesCreated = true;
+        }
+
+        if (m_renderEnvironmentMapPass && (!m_environmentMapPdfMipmapPass || rtxdiResourcesCreated))
+        {
+            m_environmentMapPdfMipmapPass = std::make_unique<GenerateMipsPass>(
+                GetDevice(), m_shaderFactory,
+                environmentMap,
+                m_rtxdiResources->EnvironmentPdfTexture);
+            m_environmentMapDirty = true;
         }
         
         if (renderTargetsCreated || rtxdiResourcesCreated)
@@ -374,14 +420,58 @@ public:
         m_restirDIContext->SetFrameIndex(GetFrameIndex());
         m_restirGIContext->SetFrameIndex(GetFrameIndex());
 
-        RTXDI_LightBufferParameters lightBufferParams = m_prepareLightsPass->Process(m_commandList);
+        if (m_environmentLight && m_renderEnvironmentMapPass)
+        {
+            m_environmentLight->textureIndex = m_renderEnvironmentMapPass->GetTextureIndex();
+            const auto& texDesc = m_renderEnvironmentMapPass->GetTexture()->getDesc();
+            m_environmentLight->textureSize = uint2(texDesc.width, texDesc.height);
+            m_environmentLight->radianceScale = 1.f;
+            m_environmentLight->rotation = 0.f;
+            m_sunLight->irradiance = 1.f;
+        }
+
+        if (m_environmentMapDirty && m_renderEnvironmentMapPass && m_sunLight)
+        {
+            donut::render::SkyParameters skyParams;
+            m_renderEnvironmentMapPass->Render(m_commandList, *m_sunLight, skyParams);
+
+            if (m_environmentMapPdfMipmapPass)
+                m_environmentMapPdfMipmapPass->Process(m_commandList);
+
+            m_environmentMapDirty = false;
+        }
+
+        bool hasEnvironmentMap = m_environmentLight && m_renderEnvironmentMapPass;
+        RTXDI_LightBufferParameters lightBufferParams = m_prepareLightsPass->Process(
+            m_commandList, *m_restirDIContext,
+            m_scene->GetSceneGraph()->GetLights(),
+            hasEnvironmentMap);
+
+        LightingPasses::EnvironmentRenderParams envParams;
+        if (hasEnvironmentMap)
+        {
+            envParams.sceneConstants.enableEnvironmentMap = 1;
+            envParams.sceneConstants.environmentMapTextureIndex = m_renderEnvironmentMapPass->GetTextureIndex();
+            envParams.sceneConstants.environmentScale = m_environmentLight->radianceScale.x;
+            envParams.sceneConstants.environmentRotation = m_environmentLight->rotation;
+
+            envParams.environmentPdfTextureSize = uint2(
+                m_rtxdiResources->EnvironmentPdfTexture->getDesc().width,
+                m_rtxdiResources->EnvironmentPdfTexture->getDesc().height);
+            envParams.localLightPdfTextureSize = uint2(
+                m_rtxdiResources->LocalLightPdfTexture->getDesc().width,
+                m_rtxdiResources->LocalLightPdfTexture->getDesc().height);
+        }
+        envParams.localLightsRISBufferSegmentParams = m_localLightsRISBufferSegmentParams;
+        envParams.environmentLightRISBufferSegmentParams = m_environmentLightRISBufferSegmentParams;
 
         m_lightingPasses->Render(m_commandList,
             *m_restirDIContext,
             *m_restirGIContext,
             m_view, m_viewPrevious,
             m_ui.lightingSettings,
-            lightBufferParams);
+            lightBufferParams,
+            envParams);
 
         nvrhi::ITexture* displayTexture = m_renderTargets->HdrColor;
 
@@ -512,10 +602,20 @@ private:
     std::unique_ptr<LightingPasses> m_lightingPasses;
     std::unique_ptr<AccumulationPass> m_accumulationPass;
     std::unique_ptr<RtxdiResources> m_rtxdiResources;
+    std::unique_ptr<RenderEnvironmentMapPass> m_renderEnvironmentMapPass;
+    std::unique_ptr<GenerateMipsPass> m_environmentMapPdfMipmapPass;
+    std::unique_ptr<rtxdi::RISBufferSegmentAllocator> m_risBufferSegmentAllocator;
+
+    std::shared_ptr<donut::engine::DirectionalLight> m_sunLight;
+    std::shared_ptr<EnvironmentLight> m_environmentLight;
+
+    RTXDI_RISBufferSegmentParameters m_localLightsRISBufferSegmentParams = {};
+    RTXDI_RISBufferSegmentParameters m_environmentLightRISBufferSegmentParams = {};
 
     UIData& m_ui;
     CommandLineArguments m_args;
     bool m_cameraInitialized = false;
+    bool m_environmentMapDirty = true;
     uint32_t m_renderFrameIndex = 0;
 };
 

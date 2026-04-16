@@ -10,9 +10,11 @@
 
 #pragma once
 
+#include <donut/engine/SceneGraph.h>
 #include <nvrhi/nvrhi.h>
 #include <Rtxdi/DI/ReSTIRDI.h>
 #include <memory>
+#include <unordered_map>
 
 
 namespace donut::engine
@@ -39,7 +41,11 @@ public:
     void CreateBindingSet(RtxdiResources& resources);
     void CountLightsInScene(uint32_t& numEmissiveMeshes, uint32_t& numEmissiveTriangles);
     
-    RTXDI_LightBufferParameters Process(nvrhi::ICommandList* commandList);
+    RTXDI_LightBufferParameters Process(
+        nvrhi::ICommandList* commandList,
+        const rtxdi::ReSTIRDIContext& context,
+        const std::vector<std::shared_ptr<donut::engine::Light>>& sceneLights,
+        bool enableImportanceSampledEnvironmentLight);
 
 private:
     nvrhi::DeviceHandle m_device;
@@ -51,9 +57,18 @@ private:
     nvrhi::BindingLayoutHandle m_bindlessLayout;
 
     nvrhi::BufferHandle m_taskBuffer;
+    nvrhi::BufferHandle m_primitiveLightBuffer;
+    nvrhi::BufferHandle m_lightIndexMappingBuffer;
     nvrhi::BufferHandle m_geometryInstanceToLightBuffer;
+    nvrhi::TextureHandle m_localLightPdfTexture;
+
+    uint32_t m_maxLightsInBuffer = 0;
+    bool m_oddFrame = false;
 
     std::shared_ptr<donut::engine::ShaderFactory> m_shaderFactory;
     std::shared_ptr<donut::engine::CommonRenderPasses> m_commonPasses;
     std::shared_ptr<donut::engine::Scene> m_scene;
+
+    std::unordered_map<size_t, uint32_t> m_instanceLightBufferOffsets;
+    std::unordered_map<const donut::engine::Light*, uint32_t> m_primitiveLightBufferOffsets;
 };

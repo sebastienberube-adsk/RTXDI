@@ -54,7 +54,10 @@ LightingPasses::LightingPasses(
 
         nvrhi::BindingLayoutItem::StructuredBuffer_SRV(20),
         nvrhi::BindingLayoutItem::TypedBuffer_SRV(21),
-        nvrhi::BindingLayoutItem::StructuredBuffer_SRV(22),
+        nvrhi::BindingLayoutItem::TypedBuffer_SRV(22),
+        nvrhi::BindingLayoutItem::Texture_SRV(23),
+        nvrhi::BindingLayoutItem::Texture_SRV(24),
+        nvrhi::BindingLayoutItem::StructuredBuffer_SRV(25),
 
         nvrhi::BindingLayoutItem::StructuredBuffer_UAV(0),
         nvrhi::BindingLayoutItem::Texture_UAV(1),
@@ -69,6 +72,8 @@ LightingPasses::LightingPasses(
         nvrhi::BindingLayoutItem::Texture_UAV(10),
         nvrhi::BindingLayoutItem::StructuredBuffer_UAV(11),
         nvrhi::BindingLayoutItem::StructuredBuffer_UAV(12),
+        nvrhi::BindingLayoutItem::TypedBuffer_UAV(13),
+        nvrhi::BindingLayoutItem::TypedBuffer_UAV(14),
 
         nvrhi::BindingLayoutItem::VolatileConstantBuffer(0),
         nvrhi::BindingLayoutItem::Sampler(0),
@@ -105,7 +110,10 @@ void LightingPasses::CreateBindingSet(
 
             nvrhi::BindingSetItem::StructuredBuffer_SRV(20, resources.LightDataBuffer),
             nvrhi::BindingSetItem::TypedBuffer_SRV(21, resources.NeighborOffsetsBuffer),
-            nvrhi::BindingSetItem::StructuredBuffer_SRV(22, resources.GeometryInstanceToLightBuffer),
+            nvrhi::BindingSetItem::TypedBuffer_SRV(22, resources.LightIndexMappingBuffer),
+            nvrhi::BindingSetItem::Texture_SRV(23, resources.EnvironmentPdfTexture),
+            nvrhi::BindingSetItem::Texture_SRV(24, resources.LocalLightPdfTexture),
+            nvrhi::BindingSetItem::StructuredBuffer_SRV(25, resources.GeometryInstanceToLightBuffer),
 
             nvrhi::BindingSetItem::StructuredBuffer_UAV(0, resources.LightReservoirBuffer),
             nvrhi::BindingSetItem::Texture_UAV(1, renderTargets.DiffuseLighting),
@@ -120,6 +128,8 @@ void LightingPasses::CreateBindingSet(
             nvrhi::BindingSetItem::Texture_UAV(10, renderTargets.HdrColor),
             nvrhi::BindingSetItem::StructuredBuffer_UAV(11, resources.SecondaryGBuffer),
             nvrhi::BindingSetItem::StructuredBuffer_UAV(12, resources.GIReservoirBuffer),
+            nvrhi::BindingSetItem::TypedBuffer_UAV(13, resources.RisBuffer),
+            nvrhi::BindingSetItem::TypedBuffer_UAV(14, resources.RisLightDataBuffer),
             
             nvrhi::BindingSetItem::ConstantBuffer(0, m_constantBuffer),
             nvrhi::BindingSetItem::Sampler(0, m_commonPasses->m_AnisotropicWrapSampler),
@@ -156,6 +166,8 @@ void LightingPasses::CreatePipeline()
     m_giFusedResamplingShader = m_shaderFactory->CreateShader("app/GIFusedResampling.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_giFinalShadingShader = m_shaderFactory->CreateShader("app/GIFinalShading.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
     m_compositingShader = m_shaderFactory->CreateShader("app/Compositing.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_presampleLightsShader = m_shaderFactory->CreateShader("app/PresampleLights.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_presampleEnvironmentMapShader = m_shaderFactory->CreateShader("app/PresampleEnvironmentMap.hlsl", "main", nullptr, nvrhi::ShaderType::Compute);
 
     nvrhi::ComputePipelineDesc pipelineDesc;
     pipelineDesc.bindingLayouts = { m_bindingLayout, m_bindlessLayout };
@@ -198,6 +210,12 @@ void LightingPasses::CreatePipeline()
 
     pipelineDesc.CS = m_compositingShader;
     m_compositingPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_presampleLightsShader;
+    m_presampleLightsPipeline = m_device->createComputePipeline(pipelineDesc);
+
+    pipelineDesc.CS = m_presampleEnvironmentMapShader;
+    m_presampleEnvironmentMapPipeline = m_device->createComputePipeline(pipelineDesc);
 }
 
 void LightingPasses::Render(
@@ -207,7 +225,8 @@ void LightingPasses::Render(
     const donut::engine::IView& view,
     const donut::engine::IView& previousView,
     const Settings& localSettings,
-    const RTXDI_LightBufferParameters& lightBufferParams)
+    const RTXDI_LightBufferParameters& lightBufferParams,
+    const EnvironmentRenderParams& envParams)
 {
     context.SetResamplingMode(localSettings.resamplingMode);
 
@@ -215,6 +234,9 @@ void LightingPasses::Render(
     initialSamplingParams.numPrimaryLocalLightSamples = localSettings.numInitialSamples;
     initialSamplingParams.numPrimaryBrdfSamples = localSettings.numInitialBRDFSamples;
     initialSamplingParams.brdfCutoff = localSettings.brdfCutoff;
+    initialSamplingParams.numPrimaryInfiniteLightSamples = localSettings.numPrimaryInfiniteLightSamples;
+    initialSamplingParams.numPrimaryEnvironmentSamples = localSettings.numPrimaryEnvironmentSamples;
+    initialSamplingParams.environmentMapImportanceSampling = lightBufferParams.environmentLightParams.lightPresent;
     context.SetInitialSamplingParameters(initialSamplingParams);
 
     auto temporalParams = context.GetTemporalResamplingParameters();
@@ -240,6 +262,11 @@ void LightingPasses::Render(
     constants.basicTonemapBias = localSettings.basicTonemapBias;
     constants.lightBufferParams = lightBufferParams;
     constants.runtimeParams = context.GetRuntimeParams();
+    constants.sceneConstants = envParams.sceneConstants;
+    constants.localLightsRISBufferSegmentParams = envParams.localLightsRISBufferSegmentParams;
+    constants.environmentLightRISBufferSegmentParams = envParams.environmentLightRISBufferSegmentParams;
+    constants.environmentPdfTextureSize = envParams.environmentPdfTextureSize;
+    constants.localLightPdfTextureSize = envParams.localLightPdfTextureSize;
 
     constants.restirDI.reservoirBufferParams = context.GetReservoirBufferParameters();
     constants.restirDI.bufferIndices = context.GetBufferIndices();
@@ -272,6 +299,34 @@ void LightingPasses::Render(
     commandList->setComputeState(state);
     commandList->dispatch(dispatchWidth, dispatchHeight);
     commandList->endMarker();
+
+    if (lightBufferParams.localLightBufferRegion.numLights > 0)
+    {
+        uint32_t presampleLocalW = dm::div_ceil(envParams.localLightsRISBufferSegmentParams.tileSize, RTXDI_PRESAMPLING_GROUP_SIZE);
+        uint32_t presampleLocalH = envParams.localLightsRISBufferSegmentParams.tileCount;
+        if (presampleLocalW > 0 && presampleLocalH > 0)
+        {
+            commandList->beginMarker("PresampleLights");
+            state.pipeline = m_presampleLightsPipeline;
+            commandList->setComputeState(state);
+            commandList->dispatch(presampleLocalW, presampleLocalH);
+            commandList->endMarker();
+        }
+    }
+
+    if (lightBufferParams.environmentLightParams.lightPresent)
+    {
+        uint32_t presampleEnvW = dm::div_ceil(envParams.environmentLightRISBufferSegmentParams.tileSize, RTXDI_PRESAMPLING_GROUP_SIZE);
+        uint32_t presampleEnvH = envParams.environmentLightRISBufferSegmentParams.tileCount;
+        if (presampleEnvW > 0 && presampleEnvH > 0)
+        {
+            commandList->beginMarker("PresampleEnvironmentMap");
+            state.pipeline = m_presampleEnvironmentMapPipeline;
+            commandList->setComputeState(state);
+            commandList->dispatch(presampleEnvW, presampleEnvH);
+            commandList->endMarker();
+        }
+    }
 
     // Run the lighting passes in the necessary sequence: one fused kernel or multiple separate passes.
     //

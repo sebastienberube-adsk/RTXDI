@@ -10,8 +10,6 @@
 
 #pragma pack_matrix(row_major)
 
-#define RTXDI_ENABLE_PRESAMPLING 0
-
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"
 
 #include <Rtxdi/DI/InitialSampling.hlsli>
@@ -25,24 +23,15 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
 
     RTXDI_DIReservoir reservoir = RTXDI_EmptyDIReservoir();
 
-    // Unlike the full sample, we check if the surface is valid before generating any samples.
-    // Not sure why, maybe this is because the minimal sample only generates local light samples,
-    // which require a valid surface. The full sample generates local, infinite, environment,
-    // and BRDF samples, and some of those sample types can be generated even for invalid surfaces
-    // (e.g. infinite lights, environment map).
     if (RAB_IsSurfaceValid(surface))
     {
-        // Init random sampler state. tileRng is not actually needed, because presampling (RIS buffers / ReGIR) is disabled.
-        // It's seeded per-tile (pixelPosition / RTXDI_TILE_SIZE_IN_PIXELS) so that all pixels within the
-        // same screen tile share the same random sequence when indexing into a pre-sampled light list.
-        // This ensures coherent tile-level light selection.
         RAB_RandomSamplerState rng = RAB_InitRandomSampler(pixelPosition, 1);
-        RAB_RandomSamplerState tileRng = rng;
+        RAB_RandomSamplerState tileRng = RAB_InitRandomSampler(pixelPosition / RTXDI_TILE_SIZE_IN_PIXELS, 1);
 
         RTXDI_SampleParameters sampleParams = RTXDI_InitSampleParameters(
             g_Const.restirDI.initialSamplingParams.numPrimaryLocalLightSamples,
-            0, // No infinite/directional light samples in the minimal sample
-            0, // No environment map samples in the minimal sample
+            g_Const.restirDI.initialSamplingParams.numPrimaryInfiniteLightSamples,
+            g_Const.restirDI.initialSamplingParams.numPrimaryEnvironmentSamples,
             g_Const.restirDI.initialSamplingParams.numPrimaryBrdfSamples,
             g_Const.restirDI.initialSamplingParams.brdfCutoff,
             0.001f);
@@ -51,12 +40,10 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
 
         reservoir = RTXDI_SampleLightsForSurface(rng, tileRng, surface,
             sampleParams, lightBufferParams, ReSTIRDI_LocalLightSamplingMode_UNIFORM,
+#ifdef RTXDI_ENABLE_PRESAMPLING
+            g_Const.localLightsRISBufferSegmentParams, g_Const.environmentLightRISBufferSegmentParams,
+#endif
             lightSample);
-
-        // Align RNG state with IntermediateSample which compiles with
-        // RTXDI_ENABLE_PRESAMPLING=1 (SDK default), causing an extra
-        // RAB_GetNextRandom inside the environment reservoir combination step.
-        RAB_GetNextRandom(rng);
 
         if (g_Const.restirDI.initialSamplingParams.enableInitialVisibility && RTXDI_IsValidDIReservoir(reservoir))
         {

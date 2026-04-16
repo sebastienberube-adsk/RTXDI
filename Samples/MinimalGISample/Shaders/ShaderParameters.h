@@ -16,6 +16,16 @@
 #include <Rtxdi/DI/ReSTIRDIParameters.h>
 #include <Rtxdi/GI/ReSTIRGIParameters.h>
 
+struct PreprocessEnvironmentMapConstants
+{
+    uint2 sourceSize;
+    uint sourceMipLevel;
+    uint numDestMipLevels;
+};
+
+#define TASK_PRIMITIVE_LIGHT_BIT 0x80000000u
+
+#define RTXDI_PRESAMPLING_GROUP_SIZE 256
 #define RTXDI_GRID_BUILD_GROUP_SIZE 256
 #define RTXDI_SCREEN_SPACE_GROUP_SIZE 8
 
@@ -29,14 +39,23 @@
 struct PrepareLightsConstants
 {
     uint numTasks;
+    uint currentFrameLightOffset;
+    uint previousFrameLightOffset;
 };
 
 struct PrepareLightsTask
 {
-    uint instanceIndex;
-    uint geometryIndex;
+    uint instanceAndGeometryIndex; // low 12 bits geometry, mid 19 bits instance, high bit TASK_PRIMITIVE_LIGHT_BIT
     uint triangleCount;
     uint lightBufferOffset;
+    int previousLightBufferOffset; // -1 means no previous data
+};
+
+struct RenderEnvironmentMapConstants
+{
+    ProceduralSkyShaderParameters params;
+
+    float2 invTextureSize;
 };
 
 struct BRDFPathTracing_Parameters
@@ -64,12 +83,66 @@ static const uint32_t kSecondaryGBuffer_IsSpecularRay = 1;
 static const uint32_t kSecondaryGBuffer_IsDeltaSurface = 2;
 static const uint32_t kSecondaryGBuffer_IsEnvironmentMap = 4;
 
+static const uint kPolymorphicLightTypeShift = 24;
+static const uint kPolymorphicLightTypeMask = 0xf;
+static const uint kPolymorphicLightShapingEnableBit = 1 << 28;
+static const uint kPolymorphicLightIesProfileEnableBit = 1 << 29;
+static const float kPolymorphicLightMinLog2Radiance = -8.f;
+static const float kPolymorphicLightMaxLog2Radiance = 40.f;
+
+#ifdef __cplusplus
+enum class PolymorphicLightType
+#else
+enum PolymorphicLightType
+#endif
+{
+    kSphere = 0,
+    kCylinder,
+    kDisk,
+    kRect,
+    kTriangle,
+    kDirectional,
+    kEnvironment,
+    kPoint
+};
+
+struct PolymorphicLightInfo
+{
+    // uint4[0]
+    float3 center;
+    uint colorTypeAndFlags; // RGB8 + uint8 (see the kPolymorphicLight... constants above)
+
+    // uint4[1]
+    uint direction1; // oct-encoded
+    uint direction2; // oct-encoded
+    uint scalars; // 2x float16
+    uint logRadiance; // uint16
+
+    // uint4[2] -- optional, contains only shaping data
+    uint iesProfileIndex;
+    uint primaryAxis; // oct-encoded
+    uint cosConeAngleAndSoftness; // 2x float16
+    uint padding;
+};
+
+struct SceneConstants
+{
+    uint enableEnvironmentMap;
+    uint environmentMapTextureIndex;
+    float environmentScale;
+    float environmentRotation;
+};
+
 struct ResamplingConstants
 {
     PlanarViewConstants view;
     PlanarViewConstants prevView;
     RTXDI_RuntimeParameters runtimeParams;
     RTXDI_LightBufferParameters lightBufferParams;
+    RTXDI_RISBufferSegmentParameters localLightsRISBufferSegmentParams;
+    RTXDI_RISBufferSegmentParameters environmentLightRISBufferSegmentParams;
+
+    SceneConstants sceneConstants;
 
     ReSTIRDI_Parameters restirDI;
     ReSTIRGI_Parameters restirGI;
@@ -84,6 +157,9 @@ struct ResamplingConstants
     float basicTonemapBias;
     int diagMode;
     uint pad_2;
+
+    uint2 environmentPdfTextureSize;
+    uint2 localLightPdfTextureSize;
 };
 
 struct AccumulationConstants
@@ -93,19 +169,6 @@ struct AccumulationConstants
     float2 inputTextureSizeInv;
     float2 pixelOffset;
     float blendFactor;
-};
-
-// See TriangleLight.hlsli for encoding format
-struct RAB_LightInfo
-{
-    // uint4[0]
-    float3 center;
-    uint scalars; // 2x float16
-    
-    // uint4[1]
-    uint2 radiance; // fp16x4
-    uint direction1; // oct-encoded
-    uint direction2; // oct-encoded
 };
 
 #endif // SHADER_PARAMETERS_H

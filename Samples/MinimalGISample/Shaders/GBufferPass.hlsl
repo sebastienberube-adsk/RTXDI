@@ -10,8 +10,6 @@
 
 #pragma pack_matrix(row_major)
 
-#define RTXDI_ENABLE_PRESAMPLING 0
-// Match Intermediate/Full material decode path for metal/rough reconstruction.
 #define ENABLE_METAL_ROUGH_RECONSTRUCTION 1
 
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"

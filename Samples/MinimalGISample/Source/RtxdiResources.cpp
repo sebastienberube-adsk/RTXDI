@@ -11,6 +11,7 @@
 #include "RtxdiResources.h"
 #include <Rtxdi/DI/ReSTIRDI.h>
 #include <Rtxdi/GI/ReSTIRGI.h>
+#include <Rtxdi/LightSampling/RISBufferSegmentAllocator.h>
 
 #include <donut/core/math/math.h>
 
@@ -20,16 +21,20 @@ using namespace dm;
 RtxdiResources::RtxdiResources(
     nvrhi::IDevice* device, 
     const rtxdi::ReSTIRDIContext& context,
+    const rtxdi::RISBufferSegmentAllocator& risBufferSegmentAllocator,
     uint32_t maxEmissiveMeshes,
     uint32_t maxEmissiveTriangles,
-    uint32_t maxGeometryInstances) :
-    m_neighborOffsetsInitialized(false),
-    m_maxEmissiveMeshes(maxEmissiveMeshes),
-    m_maxEmissiveTriangles(maxEmissiveTriangles),
-    m_maxGeometryInstances(maxGeometryInstances)
+    uint32_t maxPrimitiveLights,
+    uint32_t maxGeometryInstances,
+    uint32_t environmentMapWidth,
+    uint32_t environmentMapHeight)
+    : m_maxEmissiveMeshes(maxEmissiveMeshes)
+    , m_maxEmissiveTriangles(maxEmissiveTriangles)
+    , m_maxPrimitiveLights(maxPrimitiveLights)
+    , m_maxGeometryInstances(maxGeometryInstances)
 {
     nvrhi::BufferDesc taskBufferDesc;
-    taskBufferDesc.byteSize = sizeof(PrepareLightsTask) * maxEmissiveMeshes;
+    taskBufferDesc.byteSize = sizeof(PrepareLightsTask) * (maxEmissiveMeshes + maxPrimitiveLights);
     taskBufferDesc.structStride = sizeof(PrepareLightsTask);
     taskBufferDesc.initialState = nvrhi::ResourceStates::ShaderResource;
     taskBufferDesc.keepInitialState = true;
@@ -38,9 +43,38 @@ RtxdiResources::RtxdiResources(
     TaskBuffer = device->createBuffer(taskBufferDesc);
 
 
+    nvrhi::BufferDesc primitiveLightBufferDesc;
+    primitiveLightBufferDesc.byteSize = sizeof(PolymorphicLightInfo) * std::max(maxPrimitiveLights, 1u);
+    primitiveLightBufferDesc.structStride = sizeof(PolymorphicLightInfo);
+    primitiveLightBufferDesc.initialState = nvrhi::ResourceStates::ShaderResource;
+    primitiveLightBufferDesc.keepInitialState = true;
+    primitiveLightBufferDesc.debugName = "PrimitiveLightBuffer";
+    PrimitiveLightBuffer = device->createBuffer(primitiveLightBufferDesc);
+
+
+    nvrhi::BufferDesc risBufferDesc;
+    risBufferDesc.byteSize = sizeof(uint32_t) * 2 * std::max(risBufferSegmentAllocator.getTotalSizeInElements(), 1u);
+    risBufferDesc.format = nvrhi::Format::RG32_UINT;
+    risBufferDesc.canHaveTypedViews = true;
+    risBufferDesc.initialState = nvrhi::ResourceStates::ShaderResource;
+    risBufferDesc.keepInitialState = true;
+    risBufferDesc.debugName = "RisBuffer";
+    risBufferDesc.canHaveUAVs = true;
+    RisBuffer = device->createBuffer(risBufferDesc);
+
+
+    risBufferDesc.byteSize = sizeof(uint32_t) * 8 * std::max(risBufferSegmentAllocator.getTotalSizeInElements(), 1u);
+    risBufferDesc.format = nvrhi::Format::RGBA32_UINT;
+    risBufferDesc.debugName = "RisLightDataBuffer";
+    RisLightDataBuffer = device->createBuffer(risBufferDesc);
+
+
+    uint32_t maxLocalLights = maxEmissiveTriangles + maxPrimitiveLights;
+    uint32_t lightBufferElements = maxLocalLights * 2;
+
     nvrhi::BufferDesc lightBufferDesc;
-    lightBufferDesc.byteSize = sizeof(RAB_LightInfo) * maxEmissiveTriangles;
-    lightBufferDesc.structStride = sizeof(RAB_LightInfo);
+    lightBufferDesc.byteSize = sizeof(PolymorphicLightInfo) * lightBufferElements;
+    lightBufferDesc.structStride = sizeof(PolymorphicLightInfo);
     lightBufferDesc.initialState = nvrhi::ResourceStates::ShaderResource;
     lightBufferDesc.keepInitialState = true;
     lightBufferDesc.debugName = "LightDataBuffer";
@@ -55,6 +89,17 @@ RtxdiResources::RtxdiResources(
     geometryInstanceToLightBufferDesc.keepInitialState = true;
     geometryInstanceToLightBufferDesc.debugName = "GeometryInstanceToLightBuffer";
     GeometryInstanceToLightBuffer = device->createBuffer(geometryInstanceToLightBufferDesc);
+
+
+    nvrhi::BufferDesc lightIndexMappingBufferDesc;
+    lightIndexMappingBufferDesc.byteSize = sizeof(uint32_t) * lightBufferElements;
+    lightIndexMappingBufferDesc.format = nvrhi::Format::R32_UINT;
+    lightIndexMappingBufferDesc.canHaveTypedViews = true;
+    lightIndexMappingBufferDesc.initialState = nvrhi::ResourceStates::ShaderResource;
+    lightIndexMappingBufferDesc.keepInitialState = true;
+    lightIndexMappingBufferDesc.debugName = "LightIndexMappingBuffer";
+    lightIndexMappingBufferDesc.canHaveUAVs = true;
+    LightIndexMappingBuffer = device->createBuffer(lightIndexMappingBufferDesc);
 
 
     nvrhi::BufferDesc neighborOffsetBufferDesc;
@@ -86,6 +131,27 @@ RtxdiResources::RtxdiResources(
     secondaryGBufferDesc.canHaveUAVs = true;
     SecondaryGBuffer = device->createBuffer(secondaryGBufferDesc);
 
+
+    nvrhi::TextureDesc environmentPdfDesc;
+    environmentPdfDesc.width = std::max(environmentMapWidth, 1u);
+    environmentPdfDesc.height = std::max(environmentMapHeight, 1u);
+    environmentPdfDesc.mipLevels = uint32_t(ceilf(::log2f(float(std::max(environmentPdfDesc.width, environmentPdfDesc.height)))) + 1);
+    environmentPdfDesc.isUAV = true;
+    environmentPdfDesc.debugName = "EnvironmentPdf";
+    environmentPdfDesc.initialState = nvrhi::ResourceStates::ShaderResource;
+    environmentPdfDesc.keepInitialState = true;
+    environmentPdfDesc.format = nvrhi::Format::R16_FLOAT;
+    EnvironmentPdfTexture = device->createTexture(environmentPdfDesc);
+
+    nvrhi::TextureDesc localLightPdfDesc;
+    rtxdi::ComputePdfTextureSize(maxLocalLights, localLightPdfDesc.width, localLightPdfDesc.height, localLightPdfDesc.mipLevels);
+    assert(localLightPdfDesc.width * localLightPdfDesc.height >= maxLocalLights);
+    localLightPdfDesc.isUAV = true;
+    localLightPdfDesc.debugName = "LocalLightPdf";
+    localLightPdfDesc.initialState = nvrhi::ResourceStates::ShaderResource;
+    localLightPdfDesc.keepInitialState = true;
+    localLightPdfDesc.format = nvrhi::Format::R32_FLOAT;
+    LocalLightPdfTexture = device->createTexture(localLightPdfDesc);
 
     nvrhi::BufferDesc giReservoirBufferDesc;
     giReservoirBufferDesc.byteSize = sizeof(RTXDI_PackedGIReservoir) * context.GetReservoirBufferParameters().reservoirArrayPitch * rtxdi::c_NumReSTIRGIReservoirBuffers;
@@ -120,6 +186,11 @@ uint32_t RtxdiResources::GetMaxEmissiveMeshes() const
 uint32_t RtxdiResources::GetMaxEmissiveTriangles() const
 {
     return m_maxEmissiveTriangles;
+}
+
+uint32_t RtxdiResources::GetMaxPrimitiveLights() const
+{
+    return m_maxPrimitiveLights;
 }
 
 uint32_t RtxdiResources::GetMaxGeometryInstances() const

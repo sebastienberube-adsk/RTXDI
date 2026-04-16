@@ -10,8 +10,6 @@
 
 #pragma pack_matrix(row_major)
 
-#include "RtxdiApplicationBridge/RAB_LightInfo.hlsli"
-
 #include <donut/shaders/bindless.h>
 #include <donut/shaders/binding_helpers.hlsli>
 #include <donut/shaders/packing.hlsli>
@@ -19,8 +17,11 @@
 #include "ShaderParameters.h"
 
 VK_PUSH_CONSTANT ConstantBuffer<PrepareLightsConstants> g_Const : register(b0);
-RWStructuredBuffer<RAB_LightInfo> u_LightDataBuffer : register(u0);
+RWStructuredBuffer<PolymorphicLightInfo> u_LightDataBuffer : register(u0);
+RWBuffer<uint> u_LightIndexMappingBuffer : register(u1);
+RWTexture2D<float> u_LocalLightPdfTexture : register(u2);
 StructuredBuffer<PrepareLightsTask> t_TaskBuffer : register(t0);
+StructuredBuffer<PolymorphicLightInfo> t_PrimitiveLights : register(t1);
 StructuredBuffer<InstanceData> t_InstanceData : register(t2);
 StructuredBuffer<GeometryData> t_GeometryData : register(t3);
 StructuredBuffer<MaterialConstants> t_MaterialConstants : register(t4);
@@ -29,13 +30,12 @@ SamplerState s_MaterialSampler : register(s0);
 VK_BINDING(0, 1) ByteAddressBuffer t_BindlessBuffers[] : register(t0, space1);
 VK_BINDING(1, 1) Texture2D t_BindlessTextures[] : register(t0, space2);
 
-#include "TriangleLight.hlsli"
+#define ENVIRONMENT_SAMPLER s_MaterialSampler
+#define IES_SAMPLER s_MaterialSampler
+#include "PolymorphicLight.hlsli"
 
 bool FindTask(uint dispatchThreadId, out PrepareLightsTask task)
 {
-    // Use binary search to find the task that contains the current thread's output index:
-    //   task.lightBufferOffset <= dispatchThreadId < (task.lightBufferOffset + task.triangleCount)
-
     int left = 0;
     int right = int(g_Const.numTasks) - 1;
 
@@ -48,17 +48,14 @@ bool FindTask(uint dispatchThreadId, out PrepareLightsTask task)
 
         if (tri < 0)
         {
-            // Go left
             right = middle - 1;
         }
         else if (tri < task.triangleCount)
         {
-            // Found it!
             return true;
         }
         else
         {
-            // Go right
             left = middle + 1;
         }
     }
@@ -75,12 +72,14 @@ void main(uint dispatchThreadId : SV_DispatchThreadID, uint groupThreadId : SV_G
         return;
 
     uint triangleIdx = dispatchThreadId - task.lightBufferOffset;
+    bool isPrimitiveLight = (task.instanceAndGeometryIndex & TASK_PRIMITIVE_LIGHT_BIT) != 0;
     
-    RAB_LightInfo lightInfo = (RAB_LightInfo)0;
+    PolymorphicLightInfo lightInfo = (PolymorphicLightInfo)0;
 
+    if (!isPrimitiveLight)
     {
-        InstanceData instance = t_InstanceData[task.instanceIndex];
-        GeometryData geometry = t_GeometryData[instance.firstGeometryIndex + task.geometryIndex];
+        InstanceData instance = t_InstanceData[task.instanceAndGeometryIndex >> 12];
+        GeometryData geometry = t_GeometryData[instance.firstGeometryIndex + (task.instanceAndGeometryIndex & 0xfff)];
         MaterialConstants material = t_MaterialConstants[geometry.materialIndex];
 
         ByteAddressBuffer indexBuffer = t_BindlessBuffers[NonUniformResourceIndex(geometry.indexBufferIndex)];
@@ -104,13 +103,11 @@ void main(uint dispatchThreadId : SV_DispatchThreadID, uint groupThreadId : SV_G
         {
             Texture2D emissiveTexture = t_BindlessTextures[NonUniformResourceIndex(material.emissiveTextureIndex)];
 
-            // Load the vertex UVs
             float2 uvs[3];
             uvs[0] = asfloat(vertexBuffer.Load2(geometry.texCoord1Offset + indices[0] * c_SizeOfTexcoord));
             uvs[1] = asfloat(vertexBuffer.Load2(geometry.texCoord1Offset + indices[1] * c_SizeOfTexcoord));
             uvs[2] = asfloat(vertexBuffer.Load2(geometry.texCoord1Offset + indices[2] * c_SizeOfTexcoord));
 
-            // Calculate the triangle edges and edge lengths in UV space
             float2 edges[3];
             edges[0] = uvs[1] - uvs[0];
             edges[1] = uvs[2] - uvs[1];
@@ -121,7 +118,6 @@ void main(uint dispatchThreadId : SV_DispatchThreadID, uint groupThreadId : SV_G
             edgeLengths[1] = length(edges[1]);
             edgeLengths[2] = length(edges[2]);
 
-            // Find the shortest edge and the other two (longer) edges
             float2 shortEdge;
             float2 longEdge1;
             float2 longEdge2;
@@ -145,14 +141,9 @@ void main(uint dispatchThreadId : SV_DispatchThreadID, uint groupThreadId : SV_G
                 longEdge2 = edges[1];
             }
 
-            // Use anisotropic sampling with the sample ellipse axes parallel to the short edge
-            // and the median from the opposite vertex to the short edge.
-            // This ellipse is roughly inscribed into the triangle and approximates long or skinny
-            // triangles with highly anisotropic sampling, and is mostly round for usual triangles.
             float2 shortGradient = shortEdge * (2.0 / 3.0);
             float2 longGradient = (longEdge1 + longEdge2) / 3.0;
 
-            // Sample
             float2 centerUV = (uvs[0] + uvs[1] + uvs[2]) / 3.0;
             float3 emissiveMask = emissiveTexture.SampleGrad(s_MaterialSampler, centerUV, shortGradient, longGradient).rgb;
 
@@ -167,9 +158,30 @@ void main(uint dispatchThreadId : SV_DispatchThreadID, uint groupThreadId : SV_G
         triLight.edge2 = positions[2] - positions[0];
         triLight.radiance = radiance;
 
-        lightInfo = Store(triLight);
+        lightInfo = triLight.Store();
+    }
+    else
+    {
+        uint primitiveLightIndex = task.instanceAndGeometryIndex & ~TASK_PRIMITIVE_LIGHT_BIT;
+        lightInfo = t_PrimitiveLights[primitiveLightIndex];
     }
 
     uint lightBufferPtr = task.lightBufferOffset + triangleIdx;
-    u_LightDataBuffer[lightBufferPtr] = lightInfo;
+    u_LightDataBuffer[g_Const.currentFrameLightOffset + lightBufferPtr] = lightInfo;
+
+    if (task.previousLightBufferOffset >= 0)
+    {
+        uint prevBufferPtr = task.previousLightBufferOffset + triangleIdx;
+
+        u_LightIndexMappingBuffer[g_Const.previousFrameLightOffset + prevBufferPtr] = 
+            g_Const.currentFrameLightOffset + lightBufferPtr + 1;
+
+        u_LightIndexMappingBuffer[g_Const.currentFrameLightOffset + lightBufferPtr] = 
+            g_Const.previousFrameLightOffset + prevBufferPtr + 1;
+    }
+
+    float emissiveFlux = PolymorphicLight::getPower(lightInfo);
+
+    uint2 pdfTexturePosition = RTXDI_LinearIndexToZCurve(lightBufferPtr);
+    u_LocalLightPdfTexture[pdfTexturePosition] = emissiveFlux;
 }

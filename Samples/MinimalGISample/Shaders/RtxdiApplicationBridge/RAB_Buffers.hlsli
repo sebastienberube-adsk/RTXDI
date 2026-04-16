@@ -17,9 +17,12 @@ StructuredBuffer<GeometryData> t_GeometryData : register(t33);
 StructuredBuffer<MaterialConstants> t_MaterialConstants : register(t34);
 
 // RTXDI resources
-StructuredBuffer<RAB_LightInfo> t_LightDataBuffer : register(t20);
+StructuredBuffer<PolymorphicLightInfo> t_LightDataBuffer : register(t20);
 Buffer<float2> t_NeighborOffsets : register(t21);
-StructuredBuffer<uint> t_GeometryInstanceToLight : register(t22);
+Buffer<uint> t_LightIndexMappingBuffer : register(t22);
+Texture2D t_EnvironmentPdfTexture : register(t23);
+Texture2D t_LocalLightPdfTexture : register(t24);
+StructuredBuffer<uint> t_GeometryInstanceToLight : register(t25);
 
 // Screen-sized UAVs
 RWStructuredBuffer<RTXDI_PackedDIReservoir> u_LightReservoirs : register(u0);
@@ -36,22 +39,26 @@ RWTexture2D<float4> u_HdrColor : register(u10);
 RWStructuredBuffer<SecondaryGBufferData> u_SecondaryGBuffer : register(u11);
 RWStructuredBuffer<RTXDI_PackedGIReservoir> u_GIReservoirs : register(u12);
 
+// RTXDI UAVs
+RWBuffer<uint2> u_RisBuffer : register(u13);
+RWBuffer<uint4> u_RisLightDataBuffer : register(u14);
+
 // Other
 ConstantBuffer<ResamplingConstants> g_Const : register(b0);
 SamplerState s_MaterialSampler : register(s0);
+SamplerState s_EnvironmentSampler : register(s1);
 
+#define RTXDI_RIS_BUFFER u_RisBuffer
 #define RTXDI_LIGHT_RESERVOIR_BUFFER u_LightReservoirs
 #define RTXDI_NEIGHBOR_OFFSETS_BUFFER t_NeighborOffsets
 #define RTXDI_GI_RESERVOIR_BUFFER u_GIReservoirs
 
+#define IES_SAMPLER s_EnvironmentSampler
+
 int RAB_TranslateLightIndex(uint lightIndex, bool currentToPrevious)
 {
-    return int(lightIndex);
-}
-
-RAB_LightInfo RAB_LoadLightInfo(uint index, bool previousFrame)
-{
-    return t_LightDataBuffer[index];
+    uint mappedIndexPlusOne = t_LightIndexMappingBuffer[lightIndex];
+    return int(mappedIndexPlusOne) - 1;
 }
 
 #endif // RAB_BUFFER_HLSLI

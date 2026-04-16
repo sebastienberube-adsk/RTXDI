@@ -14,6 +14,7 @@
 
 namespace rtxdi
 {
+    class RISBufferSegmentAllocator;
     class ReSTIRDIContext;
     class ReSTIRGIContext;
 }
@@ -22,29 +23,41 @@ class RtxdiResources
 {
 public:
     nvrhi::BufferHandle TaskBuffer;
+    nvrhi::BufferHandle PrimitiveLightBuffer;
     nvrhi::BufferHandle LightDataBuffer;
+    nvrhi::BufferHandle GeometryInstanceToLightBuffer;
+    nvrhi::BufferHandle LightIndexMappingBuffer;
+    nvrhi::BufferHandle RisBuffer;
+    nvrhi::BufferHandle RisLightDataBuffer;
     nvrhi::BufferHandle NeighborOffsetsBuffer;
     nvrhi::BufferHandle LightReservoirBuffer;
-    nvrhi::BufferHandle GeometryInstanceToLightBuffer;
     nvrhi::BufferHandle SecondaryGBuffer;
+    nvrhi::TextureHandle EnvironmentPdfTexture;
+    nvrhi::TextureHandle LocalLightPdfTexture;
     nvrhi::BufferHandle GIReservoirBuffer;
 
     RtxdiResources(
         nvrhi::IDevice* device, 
         const rtxdi::ReSTIRDIContext& context,
+        const rtxdi::RISBufferSegmentAllocator& risBufferSegmentAllocator,
         uint32_t maxEmissiveMeshes,
         uint32_t maxEmissiveTriangles,
-        uint32_t maxMeshInstances);
+        uint32_t maxPrimitiveLights,
+        uint32_t maxGeometryInstances,
+        uint32_t environmentMapWidth,
+        uint32_t environmentMapHeight);
 
     void InitializeNeighborOffsets(nvrhi::ICommandList* commandList, uint32_t neighborOffsetCount);
 
     uint32_t GetMaxEmissiveMeshes() const;
     uint32_t GetMaxEmissiveTriangles() const;
+    uint32_t GetMaxPrimitiveLights() const;
     uint32_t GetMaxGeometryInstances() const;
 
 private:
-    bool m_neighborOffsetsInitialized;
-    uint32_t m_maxEmissiveMeshes;
-    uint32_t m_maxEmissiveTriangles;
-    uint32_t m_maxGeometryInstances;
+    bool m_neighborOffsetsInitialized = false;
+    uint32_t m_maxEmissiveMeshes = 0;
+    uint32_t m_maxEmissiveTriangles = 0;
+    uint32_t m_maxPrimitiveLights = 0;
+    uint32_t m_maxGeometryInstances = 0;
 };

@@ -10,8 +10,6 @@
 
 #pragma pack_matrix(row_major)
 
-#define RTXDI_ENABLE_PRESAMPLING 0
-
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"
 
 #include <Rtxdi/DI/Reservoir.hlsli>
@@ -154,7 +152,13 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     }
     else
     {
-        secondarySurface.position = ray.Origin + ray.Direction * 10000.0;
+        if (g_Const.sceneConstants.enableEnvironmentMap && includeEmissiveComponent)
+        {
+            float3 environmentRadiance = GetEnvironmentRadiance(ray.Direction);
+            radiance += environmentRadiance;
+        }
+
+        secondarySurface.position = ray.Origin + ray.Direction * DISTANT_LIGHT_DISTANCE;
         secondarySurface.normal = -ray.Direction;
         secondarySurface.diffuseAlbedo = 0;
         secondarySurface.specularF0 = 0;

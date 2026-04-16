@@ -16,6 +16,9 @@
 #include <Rtxdi/DI/ReSTIRDI.h>
 #include <Rtxdi/GI/ReSTIRGI.h>
 
+using namespace donut::math;
+#include "../shaders/ShaderParameters.h"
+
 namespace donut::engine
 {
     class Scene;
@@ -34,11 +37,19 @@ namespace rtxdi
 class RenderTargets;
 class RtxdiResources;
 class EnvironmentLight;
-struct ResamplingConstants;
 
 class LightingPasses
 {
 public:
+    struct EnvironmentRenderParams
+    {
+        SceneConstants sceneConstants = {};
+        RTXDI_RISBufferSegmentParameters localLightsRISBufferSegmentParams = {};
+        RTXDI_RISBufferSegmentParameters environmentLightRISBufferSegmentParams = {};
+        uint2 environmentPdfTextureSize = { 0, 0 };
+        uint2 localLightPdfTextureSize = { 0, 0 };
+    };
+
     struct Settings
     {
         rtxdi::ReSTIRDI_ResamplingMode resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::TemporalAndSpatial;
@@ -55,6 +66,8 @@ public:
         float basicTonemapBias = 0.035f;
         bool enableBrdfIndirect = false;
         rtxdi::ReSTIRGI_ResamplingMode giResamplingMode = rtxdi::ReSTIRGI_ResamplingMode::TemporalAndSpatial;
+        uint32_t numPrimaryInfiniteLightSamples = 0;
+        uint32_t numPrimaryEnvironmentSamples = 0;
         int diagMode = 0;
     };
 
@@ -79,7 +92,8 @@ public:
         const donut::engine::IView& view,
         const donut::engine::IView& previousView,
         const Settings& localSettings,
-        const RTXDI_LightBufferParameters& lightBufferParams);
+        const RTXDI_LightBufferParameters& lightBufferParams,
+        const EnvironmentRenderParams& envParams = {});
 
     void NextFrame();
 
@@ -99,6 +113,8 @@ private:
     nvrhi::ShaderHandle m_giFusedResamplingShader;
     nvrhi::ShaderHandle m_giFinalShadingShader;
     nvrhi::ShaderHandle m_compositingShader;
+    nvrhi::ShaderHandle m_presampleLightsShader;
+    nvrhi::ShaderHandle m_presampleEnvironmentMapShader;
 
     nvrhi::ComputePipelineHandle m_gbufferPipeline;
     nvrhi::ComputePipelineHandle m_initialSamplingPipeline;
@@ -113,6 +129,8 @@ private:
     nvrhi::ComputePipelineHandle m_giFusedResamplingPipeline;
     nvrhi::ComputePipelineHandle m_giFinalShadingPipeline;
     nvrhi::ComputePipelineHandle m_compositingPipeline;
+    nvrhi::ComputePipelineHandle m_presampleLightsPipeline;
+    nvrhi::ComputePipelineHandle m_presampleEnvironmentMapPipeline;
 
     nvrhi::BindingLayoutHandle m_bindingLayout;
     nvrhi::BindingLayoutHandle m_bindlessLayout;

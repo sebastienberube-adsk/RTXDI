@@ -178,6 +178,8 @@ void ProcessCommandLine(int argc, char** argv,
         ui.enableAccumulation = true;
         ui.lightingSettings.enableBasicToneMapping = true;
         ui.lightingSettings.basicTonemapBias = 0.003f;
+        ui.lightingSettings.numPrimaryInfiniteLightSamples = 1;
+        ui.lightingSettings.numPrimaryEnvironmentSamples = 1;
         ui.lightingSettings.enableMaterialSimilarityTest = false;
         ui.lightingSettings.discardInvisibleSamples = true;
         ui.lightingSettings.numDisocclusionBoostSamples = 0;

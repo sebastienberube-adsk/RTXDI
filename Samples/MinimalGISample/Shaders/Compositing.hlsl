@@ -10,8 +10,6 @@
 
 #pragma pack_matrix(row_major)
 
-#define RTXDI_ENABLE_PRESAMPLING 0
-
 #include "RtxdiApplicationBridge/RtxdiApplicationBridge.hlsli"
 
 bool outputDiagMode(uint2 px, int diagMode)
@@ -69,6 +67,11 @@ void main(uint2 pixelPosition : SV_DispatchThreadID)
     if (depth != BACKGROUND_DEPTH)
     {
         color = diffuse * diffuseAlbedo + specular * max(0.01, specularF0) + emissive;
+    }
+    else if (g_Const.sceneConstants.enableEnvironmentMap)
+    {
+        RayDesc primaryRay = setupPrimaryRay(pixelPosition, g_Const.view);
+        color = GetEnvironmentRadiance(primaryRay.Direction);
     }
 
     if (any(isnan(color)))

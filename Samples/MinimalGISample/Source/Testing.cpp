@@ -107,6 +107,7 @@ void ProcessCommandLine(int argc, char** argv,
         ("aa-mode", "Anti-aliasing mode: OFF, ACC (accumulation)", value<std::string>())
         ("minimal-sample-compatibility-mode", "Configure settings to match MinimalSample output for testing", value<bool>())
         ("intermediate-sample-compatibility-mode", "Configure settings to match IntermediateSample output for testing", value<bool>())
+        ("beauty-shot-mode", "Beauty shot mode: enable GI, accumulation, environment, low tonemap bias", value<bool>())
         ("diag-mode", "Diagnostic output mode: 0=off, 1=roughness, 2=normals, 3=diffuseAlbedo, 4=specularF0, 5=depth", value(args.diagMode))
         ;
 
@@ -168,6 +169,19 @@ void ProcessCommandLine(int argc, char** argv,
         ui.lightingSettings.enableMaterialSimilarityTest = false;
         ui.lightingSettings.enableBasicToneMapping = true;
         ui.lightingSettings.basicTonemapBias = 0.035f;
+    }
+
+    if (result.count("beauty-shot-mode"))
+    {
+        ui.lightingSettings.resamplingMode = rtxdi::ReSTIRDI_ResamplingMode::FusedSpatiotemporal;
+        ui.lightingSettings.enableBrdfIndirect = true;
+        ui.enableAccumulation = true;
+        ui.lightingSettings.enableBasicToneMapping = true;
+        ui.lightingSettings.basicTonemapBias = 0.003f;
+        ui.lightingSettings.enableMaterialSimilarityTest = false;
+        ui.lightingSettings.discardInvisibleSamples = true;
+        ui.lightingSettings.numDisocclusionBoostSamples = 0;
+        args.disableEnvironment = false;
     }
 
     if (result.count("rtxdi-tonemap-bias"))

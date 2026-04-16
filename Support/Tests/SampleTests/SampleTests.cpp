@@ -76,7 +76,8 @@ static std::string Quote(const fs::path& p)
 }
 
 static int RunSample(const std::string& exeName, const std::string& extraArgs,
-                     const fs::path& outputFile, uint32_t saveFrame)
+                     const fs::path& outputFile, uint32_t saveFrame,
+                     const char* scene = kScene)
 {
     fs::path exePath = GetExecutableDir() / exeName;
 #if defined(_WIN32)
@@ -89,7 +90,7 @@ static int RunSample(const std::string& exeName, const std::string& extraArgs,
     }
 
     std::string innerCmd = Quote(exePath)
-        + " --scene " + kScene
+        + " --scene " + scene
         + " --save-file " + Quote(outputFile)
         + " --save-frame " + std::to_string(saveFrame)
         + " " + extraArgs;
@@ -282,6 +283,22 @@ TEST(SampleImageTests, MinimalGI_vs_Intermediate_GI_Acc_VK)
     ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode RESTIRGI --minimal-gi-sample-compatibility-mode-gi --aa-mode ACC --vk", outB, 64), 0)
         << "IntermediateSample failed to run";
     EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate VK (GI Acc)"));
+}
+
+TEST(SampleImageTests, DISABLED_MinimalGI_vs_Intermediate_Beauty_Shot)
+{
+    static const char* kBeautyShotScene = "/Assets/Media/livingroom_Sun.scene.json";
+
+    fs::path outA = GetOutputDir() / "BeautyShot_MinimalGI.bmp";
+    fs::path outB = GetOutputDir() / "BeautyShot_Intermediate.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample", "--beauty-shot-mode --rtxdi-tonemap-bias 0.003", outA, 128, kBeautyShotScene), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--beauty-shot-mode --rtxdi-tonemap-bias 0.003", outB, 128, kBeautyShotScene), 0)
+        << "IntermediateSample failed to run";
+    StochasticThresholds t = GetThresholds();
+    t.imageAbsAvgDeltaThreshold = 0.045f;
+    t.imageRelDifferenceThreshold = 0.070f;
+    EXPECT_TRUE(CompareImages(outA, outB, "MinimalGI vs Intermediate (Beauty Shot)", t));
 }
 
 TEST(SampleImageTests, Intermediate_vs_Full_NoNRD)

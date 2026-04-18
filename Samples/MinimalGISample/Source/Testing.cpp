@@ -108,6 +108,8 @@ void ProcessCommandLine(int argc, char** argv,
         ("minimal-sample-compatibility-mode", "Configure settings to match MinimalSample output for testing", value<bool>())
         ("intermediate-sample-compatibility-mode", "Configure settings to match IntermediateSample output for testing", value<bool>())
         ("beauty-shot-mode", "Beauty shot mode: enable GI, accumulation, environment, low tonemap bias", value<bool>())
+        ("env-light", "Enable procedural environment", value<bool>())
+        ("sun-light", "Enable single infinite light", value<bool>())
         ("diag-mode", "Diagnostic output mode: 0=off, 1=roughness, 2=normals, 3=diffuseAlbedo, 4=specularF0, 5=depth", value(args.diagMode))
         ;
 
@@ -183,6 +185,18 @@ void ProcessCommandLine(int argc, char** argv,
         ui.lightingSettings.enableMaterialSimilarityTest = false;
         ui.lightingSettings.discardInvisibleSamples = true;
         ui.lightingSettings.numDisocclusionBoostSamples = 0;
+        args.disableEnvironment = false;
+    }
+
+    if (result.count("env-light"))
+    {
+        ui.lightingSettings.numPrimaryEnvironmentSamples = 1;
+        args.disableEnvironment = false;
+    }
+
+    if (result.count("sun-light"))
+    {
+        ui.lightingSettings.numPrimaryInfiniteLightSamples = 1;
         args.disableEnvironment = false;
     }
 

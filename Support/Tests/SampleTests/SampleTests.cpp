@@ -295,12 +295,44 @@ TEST(SampleImageTests, T05_MinimalGI_vs_Intermediate_GI_Acc_VK)
     EXPECT_TRUE(CompareImages(outA, outB, "T05_MinimalGI_vs_Intermediate_GI_Acc_VK"));
 }
 
-TEST(SampleImageTests, T06_MinimalGI_vs_Intermediate_Beauty_Shot_DX)
+TEST(SampleImageTests, T06_MinimalGI_vs_Intermediate_Furniture_DI_DX)
+{
+    static const char* kFurnitureScene = "/Assets/Media/livingroom_Furniture.scene.json";
+
+    fs::path outA = GetOutputDir() / "T06_MinimalGI_vs_Intermediate_DI_Furniture_DX_A.bmp";
+    fs::path outB = GetOutputDir() / "T06_MinimalGI_vs_Intermediate_DI_Furniture_DX_B.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample", "--indirect-mode NONE --intermediate-sample-compatibility-mode --env-light --sun-light --rtxdi-tonemap-bias 0.2", outA, 128, kFurnitureScene), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode NONE --minimal-gi-sample-compatibility-mode-di --rtxdi-tonemap-bias 0.2", outB, 128, kFurnitureScene), 0)
+        << "IntermediateSample failed to run";
+    StochasticThresholds t = GetThresholds();
+    t.imageAbsAvgDeltaThreshold = 0.045f;
+    t.imageRelDifferenceThreshold = 0.070f;
+    EXPECT_TRUE(CompareImages(outA, outB, "T06_MinimalGI_vs_Intermediate_DI_Furniture_DX", t));
+}
+
+TEST(SampleImageTests, T06_MinimalGI_vs_Intermediate_Furniture_DI_VK)
+{
+    static const char* kFurnitureScene = "/Assets/Media/livingroom_Furniture.scene.json";
+
+    fs::path outA = GetOutputDir() / "T06_MinimalGI_vs_Intermediate_DI_Furniture_VK_A.bmp";
+    fs::path outB = GetOutputDir() / "T06_MinimalGI_vs_Intermediate_DI_Furniture_VK_B.bmp";
+
+    ASSERT_EQ(RunSample("MinimalGISample", "--indirect-mode NONE --intermediate-sample-compatibility-mode --env-light --sun-light --rtxdi-tonemap-bias 0.2 --vk", outA, 128, kFurnitureScene), 0) << "MinimalGISample failed to run";
+    ASSERT_EQ(RunSample("IntermediateSample", "--indirect-mode NONE --minimal-gi-sample-compatibility-mode-di --rtxdi-tonemap-bias 0.2 --vk", outB, 128, kFurnitureScene), 0)
+        << "IntermediateSample failed to run";
+    StochasticThresholds t = GetThresholds();
+    t.imageAbsAvgDeltaThreshold = 0.045f;
+    t.imageRelDifferenceThreshold = 0.070f;
+    EXPECT_TRUE(CompareImages(outA, outB, "T06_MinimalGI_vs_Intermediate_DI_Furniture_VK", t));
+}
+
+TEST(SampleImageTests, T07_MinimalGI_vs_Intermediate_Beauty_Shot_DX)
 {
     static const char* kBeautyShotScene = "/Assets/Media/livingroom_Sun.scene.json";
 
-    fs::path outA = GetOutputDir() / "T06_MinimalGI_vs_Intermediate_Beauty_Shot_DX_A.bmp";
-    fs::path outB = GetOutputDir() / "T06_MinimalGI_vs_Intermediate_Beauty_Shot_DX_B.bmp";
+    fs::path outA = GetOutputDir() / "T07_MinimalGI_vs_Intermediate_Beauty_Shot_DX_A.bmp";
+    fs::path outB = GetOutputDir() / "T07_MinimalGI_vs_Intermediate_Beauty_Shot_DX_B.bmp";
 
     ASSERT_EQ(RunSample("MinimalGISample", "--beauty-shot-mode --rtxdi-tonemap-bias 0.003", outA, 128, kBeautyShotScene), 0) << "MinimalGISample failed to run";
     ASSERT_EQ(RunSample("IntermediateSample", "--beauty-shot-mode --rtxdi-tonemap-bias 0.003", outB, 128, kBeautyShotScene), 0)
@@ -308,15 +340,15 @@ TEST(SampleImageTests, T06_MinimalGI_vs_Intermediate_Beauty_Shot_DX)
     StochasticThresholds t = GetThresholds();
     t.imageAbsAvgDeltaThreshold = 0.045f;
     t.imageRelDifferenceThreshold = 0.070f;
-    EXPECT_TRUE(CompareImages(outA, outB, "T06_MinimalGI_vs_Intermediate_Beauty_Shot_DX", t));
+    EXPECT_TRUE(CompareImages(outA, outB, "T07_MinimalGI_vs_Intermediate_Beauty_Shot_DX", t));
 }
 
-TEST(SampleImageTests, T06_MinimalGI_vs_Intermediate_Beauty_Shot_VK)
+TEST(SampleImageTests, T07_MinimalGI_vs_Intermediate_Beauty_Shot_VK)
 {
     static const char* kBeautyShotScene = "/Assets/Media/livingroom_Sun.scene.json";
 
-    fs::path outA = GetOutputDir() / "T06_MinimalGI_vs_Intermediate_Beauty_Shot_VK_A.bmp";
-    fs::path outB = GetOutputDir() / "T06_MinimalGI_vs_Intermediate_Beauty_Shot_VK_B.bmp";
+    fs::path outA = GetOutputDir() / "T07_MinimalGI_vs_Intermediate_Beauty_Shot_VK_A.bmp";
+    fs::path outB = GetOutputDir() / "T07_MinimalGI_vs_Intermediate_Beauty_Shot_VK_B.bmp";
 
     ASSERT_EQ(RunSample("MinimalGISample", "--beauty-shot-mode --rtxdi-tonemap-bias 0.003 --vk", outA, 128, kBeautyShotScene), 0) << "MinimalGISample failed to run";
     ASSERT_EQ(RunSample("IntermediateSample", "--beauty-shot-mode --rtxdi-tonemap-bias 0.003 --vk", outB, 128, kBeautyShotScene), 0)
@@ -324,7 +356,7 @@ TEST(SampleImageTests, T06_MinimalGI_vs_Intermediate_Beauty_Shot_VK)
     StochasticThresholds t = GetThresholds();
     t.imageAbsAvgDeltaThreshold = 0.045f;
     t.imageRelDifferenceThreshold = 0.070f;
-    EXPECT_TRUE(CompareImages(outA, outB, "T06_MinimalGI_vs_Intermediate_Beauty_Shot_VK", t));
+    EXPECT_TRUE(CompareImages(outA, outB, "T07_MinimalGI_vs_Intermediate_Beauty_Shot_VK", t));
 }
 
 TEST(SampleImageTests, T98_Intermediate_vs_Full_NoNRD_DX)
